@@ -117,6 +117,9 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
                 : st === "FL"
                   ? "; no single parcel on the county roll at this point"
                   : ""}
+              {place.facts.flatCharges?.amount !== null && place.facts.flatCharges?.amount !== undefined
+                ? `; flat charges on the county tax roll $${place.facts.flatCharges.amount.toLocaleString("en-US", { maximumFractionDigits: 0 })} a year`
+                : ""}
               {place.facts.property
                 ? `; RentCast's property record: ${place.facts.property.propertyType ?? "type not stated"}${place.facts.property.bedrooms !== null ? `, ${place.facts.property.bedrooms} bedrooms` : ""}${place.facts.property.squareFootage ? `, ${place.facts.property.squareFootage.toLocaleString("en-US")} sq ft` : ""}${place.facts.property.yearBuilt ? `, built ${place.facts.property.yearBuilt}` : ""}`
                 : "; no RentCast property record matched this address"}
@@ -154,6 +157,7 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
         <Group title="Prices and other costs">
           <Num label="Electricity price" prefix="$" suffix="per kWh" step={0.01} {...field("electricityUsdPerKwh")} />
           {values.heating === "gas_heat" && <OptNum label="Gas price" prefix="$" suffix="per 1,000 cu ft" step={0.5} {...field("gasUsdPerMcf")} />}
+          <Num label="Flat charges on the tax bill" prefix="$" suffix="a year" step={10} {...field("flatChargesYearly")} />
           <Num label="HOA or condo fee" prefix="$" suffix="a month" step={10} {...field("hoaMonthly")} />
           <Num label="Water, sewer, trash" prefix="$" suffix="a month" step={5} {...field("waterMonthly")} />
           <Num label="Maintenance" suffix="% of price a year" step={0.25} {...field("maintenancePct")} />

@@ -27,6 +27,12 @@ export interface AddressFacts {
   } | null;
   /** Florida's tax district of the parcel (2026 roll code). */
   flDistrict: string | null;
+  /**
+   * Florida: the parcel's non-ad-valorem assessments on the county tax roll (spatia-data `fl_parcel_tax_district`
+   * `nav_total_usd`, tax year 2025): waste, fire, drainage, lighting, community development districts and the like. `amount` is
+   * null when the county's file has no row for the parcel (unknown, never zero).
+   */
+  flatCharges?: { amount: number | null; year: number | null; count: number | null; status: string } | null;
   /** Texas: the unified school district covering the point (TIGER GEOID). */
   txSchoolDistrict?: string | null;
   /** The geocoder's city: the POSTAL city, which can lie outside the city limits. */

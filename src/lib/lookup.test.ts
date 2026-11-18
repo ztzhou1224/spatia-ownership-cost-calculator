@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAssumptions } from "./calc";
+import { calculate, resolveAssumptions } from "./calc";
 import { floodZoneOf, rollOf, type AddressFacts } from "./lookup";
 import type { Place } from "./types";
 
@@ -52,6 +52,17 @@ describe("defaults from an address", () => {
     expect(sources.floodZone).toContain("zone AE");
     expect(sources.flDistrict).toContain("county roll");
     expect(sources.sqft).toContain("roll");
+  });
+  it("Florida's flat charges on the tax roll are their own line, never inside the property tax", () => {
+    const withNav = { ...place, facts: { ...facts, flatCharges: { amount: 284.77, year: 2025, count: 2, status: "matched" } } };
+    const { values, sources } = resolveAssumptions(withNav, {});
+    expect(values.flatChargesYearly).toBe(284.77);
+    expect(sources.flatChargesYearly).toContain("non-ad-valorem");
+    const r = calculate(withNav, values);
+    expect(r.lines.find((l) => l.key === "flat_charges")!.yearly).toBe(284.77);
+    const noRow = { ...place, facts: { ...facts, flatCharges: { amount: null, year: 2025, count: null, status: "no_row_in_county_nav_file" } } };
+    expect(resolveAssumptions(noRow, {}).values.flatChargesYearly).toBe(0);
+    expect(resolveAssumptions(noRow, {}).sources.flatChargesYearly).toContain("Not known");
   });
   it("a changed type takes the type's typical size, not the roll's", () => {
     expect(resolveAssumptions(place, { homeType: "condo" }).values.sqft).toBe(1100);

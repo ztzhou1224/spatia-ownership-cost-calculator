@@ -42,7 +42,10 @@ The estimate has two parts (the study with the owner, 2026-11-18):
      more than this rate.
 3. **Exemptions** are case by case. The calculator applies Florida's homestead exemptions when the buyer will live in the home.
    Other states' exemptions are not modelled yet.
-4. **Flat charges** (waste, special districts, Mello-Roos) are not in the figure yet.
+4. **Flat charges** are their own line ("Flat charges on the tax bill"), never inside the property tax. Florida, with an
+   address: the parcel's 2025 non-ad-valorem assessments on the county tax roll (spatia-data `fl_parcel_tax_district`
+   `nav_total_usd`; a county file with no row for the parcel is "not known", never zero). Other states and a ZIP alone: $0
+   with a note to read the seller's bill (California's Mello-Roos included). The user can enter the figure.
 
 ### Why the Florida range applies here and not in Home
 

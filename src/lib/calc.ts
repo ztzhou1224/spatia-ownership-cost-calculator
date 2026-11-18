@@ -32,6 +32,8 @@ export interface Assumptions {
   electricityUsdPerKwh: number;
   gasUsdPerMcf: number | null;
   hoaMonthly: number;
+  /** Flat charges on the tax bill, a year (non-ad-valorem assessments, special district charges). */
+  flatChargesYearly: number;
   waterMonthly: number;
   maintenancePct: number;
 }
@@ -41,7 +43,7 @@ export type AssumptionKey = keyof Assumptions;
 /** Where each default comes from, in the reader's words. */
 export type DefaultSources = Partial<Record<AssumptionKey, string>>;
 
-export const LINE_KEYS = ["loan", "pmi", "tax", "home_insurance", "flood_insurance", "hoa", "energy", "water", "maintenance"] as const;
+export const LINE_KEYS = ["loan", "pmi", "tax", "flat_charges", "home_insurance", "flood_insurance", "hoa", "energy", "water", "maintenance"] as const;
 export type LineKey = (typeof LINE_KEYS)[number];
 
 export interface Line {
@@ -86,6 +88,17 @@ export const WATER_MONTHLY = 85;
 export const GAS_SHARE_FOR_GAS_HEAT = 0.5;
 export const DEFAULT_PRICE = 400_000;
 
+/** Where the flat charges' default comes from, in the reader's words. */
+function flatSource(p: Place): string {
+  const n = p.facts?.flatCharges;
+  if (n?.amount !== null && n?.amount !== undefined)
+    return `The parcel's ${n.year ?? ""} non-ad-valorem assessments on the county tax roll${n.count ? ` (${n.count} charge${n.count === 1 ? "" : "s"})` : ""}: waste, fire, drainage, special districts. The current owner's charges; they usually stay with the home.`.replace("  ", " ");
+  if (n) return "Not known: the county's file has no row for this parcel. Read the seller's tax bill.";
+  if (p.zipData.st === "FL") return "Not known without an address. Enter the address, or read the seller's tax bill.";
+  if (p.zipData.st === "CA") return "Not modelled for California. Mello-Roos and other special assessments are on the seller's tax bill.";
+  return "Not modelled for this state. Flat charges (waste, special districts) are on the seller's tax bill.";
+}
+
 export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSources } {
   const st = p.state;
   const c = p.county;
@@ -123,6 +136,7 @@ export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSo
     electricityUsdPerKwh: st?.electricity_usd_per_kwh ?? 0.17,
     gasUsdPerMcf: st?.gas_usd_per_mcf ?? null,
     hoaMonthly: rc?.hoaFee ?? 0,
+    flatChargesYearly: f?.flatCharges?.amount ?? 0,
     waterMonthly: WATER_MONTHLY,
     maintenancePct: MAINTENANCE_PCT,
   };
@@ -154,6 +168,7 @@ export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSo
       : "Texas only.",
     electricityUsdPerKwh: st?.electricity_usd_per_kwh ? `EIA's ${st.electricity_year} state average residential price.` : "A national placeholder. Enter your utility's price.",
     gasUsdPerMcf: st?.gas_usd_per_mcf ? `EIA's ${st.gas_year} state average residential gas price, per thousand cubic feet.` : "Not published for this state.",
+    flatChargesYearly: flatSource(p),
     hoaMonthly: rc?.hoaFee ? "RentCast's property record (the total monthly HOA fee or assessment). Check it with the association." : "No public source. Enter the association's fee from the listing.",
     waterMonthly: "An assumption for a typical household. Ask for the seller's bills.",
     maintenancePct: "The common rule of 1 % of the price a year. Older homes often need more.",
@@ -220,6 +235,11 @@ export function calculate(p: Place, a: Assumptions, set: Partial<Record<LineKey,
   push("tax", "Property tax", tax, tax?.source ?? "", tax ? [`Method: ${tax.method}; an effective rate of ${tax.effectivePct.toFixed(2)} %.`, ...tax.notes, ...billNote] : billNote);
 
   const hoi = homeownersInsurance(p.zipData, p.county);
+  push("flat_charges", "Flat charges on the tax bill", { yearly: a.flatChargesYearly, low: null, high: null }, a.flatChargesYearly > 0 ? `$${Math.round(a.flatChargesYearly).toLocaleString("en-US")} a year` : "None entered", [
+    "Charges billed beside the property tax that are not a rate times a value: waste collection, fire, drainage, lighting, community development or special districts.",
+    "They are not in the property tax line. Change them under \"Prices and other costs\".",
+  ]);
+
   push("home_insurance", a.homeType === "condo" ? "Homeowners insurance (a condo policy usually costs less)" : "Homeowners insurance", hoi, hoi?.source ?? "", hoi?.notes ?? []);
 
   const flood = a.buyFlood ? floodInsurance(p.county, st, a.floodZone, a.liveInHome) : { yearly: 0, low: null, high: null, source: "Not included", notes: ["Not included. Turn it on to add the area's typical flood premium."] };

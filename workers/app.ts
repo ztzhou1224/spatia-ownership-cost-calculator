@@ -127,10 +127,16 @@ export async function answer(env: Env, address: string): Promise<LookupAnswer> {
   // one parcel only: a point on two roll rows (a stacked condominium) gives no roll facts
   const roll = rolls.length === 1 ? rolls[0] : null;
   let flDistrict: string | null = null;
+  let flatCharges: AddressFacts["flatCharges"] = null;
   if (roll && typeof roll.parcel_id === "string" && typeof roll.county_fips === "string") {
-    const second = await lookup(env, subject, [{ id: "district", layer: "fl_parcel_tax_district", predicate: { op: "keyed", key: "parcel_id", keys: [roll.parcel_id] }, columns: ["county_fips", "tax_auth_cd"], limit: 5 }]);
+    const second = await lookup(env, subject, [{ id: "district", layer: "fl_parcel_tax_district", predicate: { op: "keyed", key: "parcel_id", keys: [roll.parcel_id] }, columns: ["county_fips", "tax_auth_cd", "nav_total_usd", "nav_levy_count", "nav_tax_year", "nav_status"], limit: 5 }]);
     const d = (second.get("district") ?? []).filter((x) => x.county_fips === roll.county_fips);
     if (d.length === 1 && typeof d[0].tax_auth_cd === "string") flDistrict = d[0].tax_auth_cd;
+    if (d.length === 1 && typeof d[0].nav_status === "string") {
+      const n = d[0];
+      const usd = typeof n.nav_total_usd === "number" && n.nav_status === "matched" ? n.nav_total_usd : null;
+      flatCharges = { amount: usd, year: typeof n.nav_tax_year === "number" ? n.nav_tax_year : null, count: typeof n.nav_levy_count === "number" ? n.nav_levy_count : null, status: String(n.nav_status) };
+    }
   }
   const flood = floodZoneOf(first.get("flood") ?? []);
   const facts: AddressFacts = {
@@ -142,6 +148,7 @@ export async function answer(env: Env, address: string): Promise<LookupAnswer> {
     floodZoneCode: flood.code,
     roll: rollOf(roll),
     flDistrict,
+    flatCharges,
     city: res.components?.city ?? null,
     property: prop,
     txSchoolDistrict: (() => {
