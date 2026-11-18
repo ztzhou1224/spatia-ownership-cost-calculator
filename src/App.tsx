@@ -1,12 +1,22 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { calculate, LINE_KEYS, NATIONAL, resolveAssumptions, type Assumptions, type Line, type LineKey } from "./lib/calc";
-import { loadPlace } from "./lib/data";
+import { loadAddress, loadPlace } from "./lib/data";
+import type { TxUnit } from "./lib/texas";
 import type { Place } from "./lib/types";
 
 const usd = (v: number) => `$${Math.round(v).toLocaleString("en-US")}`;
 const usd10 = (v: number) => usd(Math.round(v / 10) * 10);
 
 type Changed = Partial<Assumptions>;
+
+const ERRORS: Record<string, string> = {
+  format: "Enter an address, or a 5-digit ZIP code.",
+  unknown: "We have no data for this ZIP code.",
+  not_found: "We could not find this address. Check it, or enter a ZIP code.",
+  not_trusted: "We could not place this address on a building. Enter a ZIP code for the area's estimates.",
+  unavailable: "The address lookup is not available now. Enter a ZIP code.",
+  bad_request: "Enter an address, or a 5-digit ZIP code.",
+};
 
 export function App() {
   const [zipInput, setZipInput] = useState(() => new URLSearchParams(location.search).get("zip") ?? "");
@@ -15,10 +25,14 @@ export function App() {
   const [changed, setChanged] = useState<Changed>({});
   const [setLines, setSetLines] = useState<Partial<Record<LineKey, number>>>({});
 
-  async function load(zip: string) {
-    const r = await loadPlace(zip.trim());
+  const [busy, setBusy] = useState(false);
+  async function load(input: string) {
+    const q = input.trim();
+    setBusy(true);
+    const r = /^\d{5}$/.test(q) ? await loadPlace(q) : await loadAddress(q);
+    setBusy(false);
     if (!r.ok) {
-      setError(r.reason === "format" ? "Enter a 5-digit ZIP code." : "We have no data for this ZIP code.");
+      setError(ERRORS[r.reason]);
       return;
     }
     setError(null);
@@ -48,11 +62,14 @@ export function App() {
             void load(zipInput);
           }}
         >
-          <label htmlFor="zip">ZIP code</label>
-          <input id="zip" inputMode="numeric" autoComplete="postal-code" maxLength={5} placeholder="33606" value={zipInput} onChange={(e) => setZipInput(e.target.value.replace(/\D/g, ""))} />
-          <button type="submit">Estimate</button>
+          <label htmlFor="zip">Address or ZIP code</label>
+          <input id="zip" autoComplete="street-address" maxLength={200} placeholder="2910 W Fair Oaks Ave, Tampa, FL" value={zipInput} onChange={(e) => setZipInput(e.target.value)} />
+          <button type="submit" disabled={busy}>
+            {busy ? "Looking up…" : "Estimate"}
+          </button>
         </form>
         {error && <p className="error">{error}</p>}
+        <p className="privacy">An address is sent to Spatia's geocoder and data service to read the flood zone and the county record. It is not stored.</p>
       </header>
       {place && <Calculator place={place} changed={changed} setChanged={setChanged} setLines={setLines} setSetLines={setSetLines} />}
       <footer className="foot">
@@ -89,7 +106,19 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
     <main className="grid">
       <section className="inputs" aria-label="Inputs">
         <p className="where">
-          ZIP {place.zip} · {st} · county {place.zipData.county}
+          {place.facts ? <strong>{place.facts.label}</strong> : <>ZIP {place.zip}</>} · {st} · county {place.zipData.county}
+          {place.facts && (
+            <>
+              <br />
+              From the address: FEMA flood zone {place.facts.floodZoneCode ?? "not mapped"}
+              {place.facts.roll
+                ? `; the county roll's ${place.facts.roll.useLabel ?? "record"}${place.facts.roll.justValue ? `, just value $${place.facts.roll.justValue.toLocaleString("en-US")} (${place.facts.roll.rollYear}; not a price)` : ""}`
+                : st === "FL"
+                  ? "; no single parcel on the county roll at this point"
+                  : ""}
+              .
+            </>
+          )}
         </p>
         <Group title="The loan">
           <Num label="Price" prefix="$" step={5000} {...field("price")} />
@@ -111,6 +140,9 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
           <Select label="Will you live in the home?" options={[[true, "Yes, my main home"], [false, "No"]]} {...field("liveInHome")} />
           <Select label="FEMA flood zone" options={[["outside", "Outside the high-risk zone"], ["sfha", "High-risk zone (A or V)"]]} {...field("floodZone")} />
           <Select label="Flood insurance" options={[[true, "Include"], [false, "Leave out"]]} {...field("buyFlood")} />
+          {st === "TX" && (place.county?.tx_units?.length ?? 0) > 0 && (
+            <TxUnits units={place.county!.tx_units!} value={values.txUnits} isChanged={"txUnits" in changed} source={sources.txUnits} onChange={(v) => setChanged((c) => ({ ...c, txUnits: v }))} onReset={field("txUnits").onReset} />
+          )}
           {st === "FL" && districts.length > 0 && (
             <Select label="Tax district" options={districts.map((d) => [d.code, `${d.name} (${(d.school + d.nonschool).toFixed(2)} mills)`] as [string, string])} {...field("flDistrict")} />
           )}
@@ -160,6 +192,58 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
         </ul>
       </section>
     </main>
+  );
+}
+
+const TX_GROUPS: [TxUnit["cls"], string][] = [
+  ["county", "County"],
+  ["school_district", "School district"],
+  ["city", "City"],
+  ["special_district", "Special districts (MUD, ESD, water, hospital, college)"],
+];
+
+function TxUnits(p: { units: TxUnit[]; value: string[]; isChanged: boolean; source?: string; onChange: (v: string[]) => void; onReset: () => void }) {
+  const [filter, setFilter] = useState("");
+  const toggle = (id: string, on: boolean) => p.onChange(on ? [...p.value, id] : p.value.filter((x) => x !== id));
+  const rate = p.units.filter((u) => p.value.includes(u.id)).reduce((s, u) => s + u.rate, 0);
+  return (
+    <div className={`field${p.isChanged ? " changed" : ""}`}>
+      <span className="label">Taxing units on the bill</span>
+      <p className="hint">
+        {p.value.length} chosen: ${rate.toFixed(4)} per $100 of value. {p.isChanged ? "" : p.source}{" "}
+        {p.isChanged && (
+          <button type="button" className="link" onClick={p.onReset}>
+            Use the estimate
+          </button>
+        )}
+      </p>
+      {TX_GROUPS.map(([cls, title]) => {
+        const list = p.units.filter((u) => u.cls === cls).filter((u) => cls === "county" || p.value.includes(u.id) || !filter || u.name.toLowerCase().includes(filter.toLowerCase()));
+        if (!list.length) return null;
+        const body = (
+          <ul className="units">
+            {list.map((u) => (
+              <li key={u.id}>
+                <label>
+                  <input type="checkbox" checked={p.value.includes(u.id)} onChange={(e) => toggle(u.id, e.target.checked)} /> {u.name} <span className="affix">{u.rate.toFixed(4)}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        );
+        return cls === "county" ? (
+          <div key={cls}>{body}</div>
+        ) : (
+          <details key={cls} open={cls === "school_district"}>
+            <summary>
+              {title} ({p.units.filter((u) => u.cls === cls && p.value.includes(u.id)).length} of {p.units.filter((u) => u.cls === cls).length} chosen)
+            </summary>
+            {body}
+          </details>
+        );
+      })}
+      {p.units.length > 30 && <input className="unit-filter" placeholder="Find a unit by name" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Find a taxing unit" />}
+    </div>
   );
 }
 

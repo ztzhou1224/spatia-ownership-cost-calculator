@@ -8,6 +8,7 @@ import { energyCost } from "./energy-cost";
 import { floodInsurance, homeownersInsurance, type FloodZone } from "./insurance";
 import { defaultPmiPct, monthlyPayment, pmiEndMonth } from "./mortgage";
 import { flDistrictOf, propertyTax, type HomeType } from "./tax";
+import { txDefaultUnits } from "./texas";
 import type { Place } from "./types";
 
 export interface Assumptions {
@@ -27,6 +28,7 @@ export interface Assumptions {
   floodZone: FloodZone;
   buyFlood: boolean;
   flDistrict: string | null;
+  txUnits: string[];
   electricityUsdPerKwh: number;
   gasUsdPerMcf: number | null;
   hoaMonthly: number;
@@ -91,24 +93,30 @@ export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSo
   const downPct = 20;
   const gasShare = st?.gas_share ?? 0;
   const heating: HeatingCase = st?.gas_usd_per_mcf !== null && st?.gas_usd_per_mcf !== undefined && gasShare >= GAS_SHARE_FOR_GAS_HEAT ? "gas_heat" : "electric_heat";
-  const district = p.zipData.st === "FL" ? flDistrictOf(c) : null;
+  const f = p.facts ?? null;
+  const roll = f?.roll ?? null;
+  const district = p.zipData.st === "FL" ? flDistrictOf(c, f?.flDistrict) : null;
+  const fromRollDistrict = !!f?.flDistrict && district?.code === f.flDistrict;
+  const homeType = roll?.homeType ?? "house";
+  const tx = p.zipData.st === "TX" && c?.tx_units?.length ? txDefaultUnits(c.tx_units, f?.txSchoolDistrict ?? null, f?.city ?? null) : null;
   const values: Assumptions = {
     price,
     downPct,
     ratePct: NATIONAL.mortgage.rate30_pct,
     termYears: 30,
     pmiPct: defaultPmiPct(downPct),
-    homeType: "house",
-    sqft: TYPICAL_SQFT.house,
+    homeType,
+    sqft: roll?.livingSqft ?? TYPICAL_SQFT[homeType],
     bedrooms: null,
-    yearBuilt: null,
+    yearBuilt: roll?.yearBuilt ?? null,
     heating,
     cooling: null,
     pool: null,
     liveInHome: true,
-    floodZone: "outside",
-    buyFlood: false,
+    floodZone: f?.floodZone ?? "outside",
+    buyFlood: f?.floodZone === "sfha",
     flDistrict: district?.code ?? null,
+    txUnits: tx?.ids ?? [],
     electricityUsdPerKwh: st?.electricity_usd_per_kwh ?? 0.17,
     gasUsdPerMcf: st?.gas_usd_per_mcf ?? null,
     hoaMonthly: 0,
@@ -121,17 +129,26 @@ export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSo
     ratePct: `${NATIONAL.mortgage.source}, 30-year fixed, week of ${NATIONAL.mortgage.week_of}.`,
     termYears: "The most common loan term.",
     pmiPct: "A typical yearly mortgage insurance rate for this down payment. A lender quotes yours.",
-    homeType: "Choose the type of home.",
-    sqft: "A typical size for this type of home. Enter the listing's living area.",
+    homeType: roll?.homeType ? `The county roll: ${roll.useLabel}.` : "Choose the type of home.",
+    sqft: roll?.livingSqft ? `The county roll's living area (${roll.rollYear} roll).` : "A typical size for this type of home. Enter the listing's living area.",
     bedrooms: "Not known: the survey's average is used.",
-    yearBuilt: "Not known: the survey's mix of ages is used.",
+    yearBuilt: roll?.yearBuilt ? `The county roll's year built (${roll.rollYear} roll).` : "Not known: the survey's mix of ages is used.",
     heating: heating === "gas_heat" ? "Gas: most homes in this state buy gas (EIA customer counts)." : "Electric: most homes in this state do not buy gas (EIA customer counts).",
     cooling: "Not known: the share of homes with air conditioning in this climate is used.",
     pool: "Not known: the survey's share is used.",
     liveInHome: "You will live in the home (applies homestead exemptions where modelled).",
-    floodZone: "Outside FEMA's high-risk zone. Check the flood map for the address.",
-    buyFlood: "Flood insurance is required only in the high-risk zone with a federally backed loan.",
-    flDistrict: district ? `${district.name}: the district with the county's typical rate. Choose yours.` : undefined,
+    floodZone: f?.floodZone
+      ? `FEMA's flood map at this address: zone ${f.floodZoneCode ?? "?"}.`
+      : f
+        ? "FEMA's map gives no zone at this address. Check the flood map."
+        : "Outside FEMA's high-risk zone. Enter the address, or check the flood map.",
+    buyFlood: f?.floodZone === "sfha" ? "Included: a lender requires flood insurance in the high-risk zone." : "Flood insurance is required only in the high-risk zone with a federally backed loan.",
+    flDistrict: district ? (fromRollDistrict ? `${district.name}: the parcel's district on the county roll.` : `${district.name}: the district with the county's typical rate. Choose yours.`) : undefined,
+    txUnits: tx
+      ? tx.schoolFromAddress
+        ? `The county, and the school district whose map covers the address. ${tx.cityFromAddress ? "The city is the postal city's: check that the home is inside the city limits." : "Add your city if the home is inside city limits."} Add special districts from the bill.`
+        : "The county, and its largest school district. Choose yours, and add your city and special districts from the bill."
+      : "Texas only.",
     electricityUsdPerKwh: st?.electricity_usd_per_kwh ? `EIA's ${st.electricity_year} state average residential price.` : "A national placeholder. Enter your utility's price.",
     gasUsdPerMcf: st?.gas_usd_per_mcf ? `EIA's ${st.gas_year} state average residential gas price, per thousand cubic feet.` : "Not published for this state.",
     hoaMonthly: "No public source. Enter the association's fee from the listing.",
@@ -150,10 +167,11 @@ export function resolveAssumptions(p: Place, changed: Partial<Assumptions>): { v
   const defaults: Assumptions = { ...base.values };
   const sources = { ...base.sources };
   const pick = <K extends AssumptionKey>(k: K): Assumptions[K] => (k in changed ? (changed[k] as Assumptions[K]) : defaults[k]);
-  defaults.sqft = TYPICAL_SQFT[pick("homeType")];
+  const rollSqft = p.facts?.roll?.livingSqft;
+  defaults.sqft = rollSqft && pick("homeType") === base.values.homeType ? rollSqft : TYPICAL_SQFT[pick("homeType")];
   defaults.pmiPct = defaultPmiPct(pick("downPct"));
   defaults.buyFlood = pick("floodZone") === "sfha";
-  if (pick("floodZone") === "sfha") sources.buyFlood = "Included: a lender requires flood insurance in the high-risk zone.";
+  sources.buyFlood = defaults.buyFlood ? "Included: a lender requires flood insurance in the high-risk zone." : "Flood insurance is required only in the high-risk zone with a federally backed loan.";
   const values = { ...defaults, ...changed } as Assumptions;
   return { values, defaults, sources };
 }
@@ -193,7 +211,7 @@ export function calculate(p: Place, a: Assumptions, set: Partial<Record<LineKey,
     a.downPct < 20 && endM ? `It ends automatically when the loan reaches 78 % of the price: about year ${Math.ceil(endM / 12)} on schedule.` : "No mortgage insurance at this down payment.",
   ]);
 
-  const tax = propertyTax({ st, county: p.zipData.county, price: a.price, homeType: a.homeType, liveInHome: a.liveInHome, flDistrict: a.flDistrict }, p.county, NATIONAL.ca_voter_pct_median);
+  const tax = propertyTax({ st, county: p.zipData.county, price: a.price, homeType: a.homeType, liveInHome: a.liveInHome, flDistrict: a.flDistrict, txUnits: a.txUnits }, p.county, NATIONAL.ca_voter_pct_median);
   push("tax", "Property tax", tax, tax?.source ?? "", tax ? [`Method: ${tax.method}; an effective rate of ${tax.effectivePct.toFixed(2)} %.`, ...tax.notes] : []);
 
   const hoi = homeownersInsurance(p.zipData, p.county);

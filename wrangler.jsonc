@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // The ownership cost calculator (owner, 2026-11-18: "if you need a server use the cloudflare worker"; the subdomain the
+  // owner left to us: cost.runspatia.com). The static site from dist/, and /api/lookup (workers/app.ts).
+  "name": "spatia-ownership-cost",
+  "main": "./workers/app.ts",
+  "compatibility_date": "2025-09-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "cost.runspatia.com", "custom_domain": true }],
+  "observability": { "enabled": true },
+  "assets": { "directory": "./dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
+  "vars": {
+    "AUTH_ISSUER": "https://auth.runspatia.com",
+    "API_ORIGIN": "https://api.runspatia.com"
+  }
+  // Secrets (wrangler secret put): SPATIA_CLIENT_ID, SPATIA_CLIENT_SECRET — a spatia-auth service client, audience `geocode`.
+}

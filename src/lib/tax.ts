@@ -10,6 +10,7 @@
  * is shown only where a back-test measured one (Florida's k × price groups that passed every bar).
  */
 import flTax from "../data/fl-tax.generated.json";
+import { texasTax } from "./texas";
 import type { CountyData, FlDistrict } from "./types";
 
 export type HomeType = "house" | "townhouse" | "condo" | "mobile";
@@ -22,6 +23,8 @@ export interface TaxInputs {
   liveInHome: boolean;
   /** Florida: the district's tax authority code (default: the county's typical district). */
   flDistrict?: string | null;
+  /** Texas: the taxing units the home pays (ids from the county's `tx_units`). */
+  txUnits?: string[] | null;
   /** A rate the user typed, in percent of the price a year; replaces the default rate. */
   ratePct?: number | null;
 }
@@ -161,5 +164,9 @@ export function propertyTax(x: TaxInputs, c: CountyData | null, stateVoterPct: n
     if (fl) return fl;
   }
   if (x.st === "CA") return californiaTax(x, c, stateVoterPct);
+  if (x.st === "TX" && c?.tx_units?.length && x.txUnits?.length) {
+    const tx = texasTax(x, c.tx_units, x.txUnits);
+    if (tx) return tx;
+  }
   return areaRateTax(x, c);
 }

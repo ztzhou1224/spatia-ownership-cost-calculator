@@ -68,7 +68,7 @@ h1 {
   font-weight: 600;
 }
 .zip input {
-  width: 7em;
+  width: min(28em, 100%);
 }
 input,
 select,
@@ -292,4 +292,33 @@ details li {
   color: var(--muted);
   font-size: 12px;
   max-width: 80ch;
+}
+.privacy {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+button[disabled] {
+  opacity: 0.7;
+  cursor: progress;
+}
+.label {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+}
+.units {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+  max-height: 16em;
+  overflow-y: auto;
+  font-size: 14px;
+}
+.units li {
+  padding: 2px 0;
+}
+.unit-filter {
+  margin-top: 6px;
+  width: 100%;
 }

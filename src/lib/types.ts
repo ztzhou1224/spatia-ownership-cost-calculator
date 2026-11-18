@@ -1,3 +1,6 @@
+import type { AddressFacts } from "./lookup";
+import type { TxUnit } from "./texas";
+
 /** The data the calculator reads for one ZIP (built by `scripts/build-data.ts`; see `public/data/`). */
 
 export interface ZipData {
@@ -37,6 +40,8 @@ export interface CountyData {
   ca_voter_pct?: number;
   /** The median of the county's published ZIP premiums (Treasury FIO), for a ZIP Treasury does not publish. */
   hoi_county?: { usd: number; year: number; zips: number };
+  /** Texas: the Comptroller's taxing units with value in the county (never summed over the county). */
+  tx_units?: TxUnit[];
 }
 
 export interface StateData {
@@ -52,4 +57,6 @@ export interface Place {
   zipData: ZipData;
   county: CountyData | null;
   state: StateData | null;
+  /** The address lookup's facts, when the user entered an address. */
+  facts?: AddressFacts | null;
 }

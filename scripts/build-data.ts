@@ -41,7 +41,7 @@ interface Rec { claim: Record<string, unknown> }
 interface CheckResult { id: string; status: string; truncated?: boolean; error?: unknown; records?: Rec[] }
 
 let catalogBuild = "";
-async function catalog(): Promise<{ catalog_build: string; layers: { id: string; version: string }[] }> {
+async function catalog(): Promise<{ catalog_build: string; layers: { id: string; version: string; withheld?: { reason_code?: string } | null }[] }> {
   const f = join(CACHE, "catalog.json");
   if (!existsSync(f)) {
     const r = await fetch(`${QUERY_URL}/catalog`, { headers: auth() });
@@ -58,12 +58,12 @@ function auth(): Record<string, string> {
   return { Authorization: `Bearer ${t}`, "Content-Type": "application/json", Accept: "application/json", "X-Spatia-End-User": "cost-calculator-build" };
 }
 /** One check, at a subject point inside the layer's extent. Retries a transient failure. */
-async function check(c: Record<string, unknown>, at: { lon: number; lat: number } = { lon: -82.46, lat: 27.95 }): Promise<CheckResult> {
+async function check(c: Record<string, unknown>, at: { lon: number; lat: number } = { lon: -82.46, lat: 27.95 }, withPilot = false): Promise<CheckResult> {
   for (let attempt = 0; ; attempt++) {
     const r = await fetch(QUERY_URL, {
       method: "POST",
       headers: auth(),
-      body: JSON.stringify({ dsl_version: "0.4", mode: "lookup", catalog_build: catalogBuild, subject: { kind: "point", ...at }, checks: [{ id: "c", ...c }] }),
+      body: JSON.stringify({ dsl_version: "0.4", mode: "lookup", catalog_build: catalogBuild, ...(withPilot ? { with_pilot: true } : {}), subject: { kind: "point", ...at }, checks: [{ id: "c", ...c }] }),
     });
     if (r.ok) {
       const res = ((await r.json()) as { checks: CheckResult[] }).checks[0];
@@ -79,7 +79,7 @@ async function check(c: Record<string, unknown>, at: { lon: number; lat: number 
 const claims = (r: CheckResult) => (r.records ?? []).map((x) => x.claim).filter((x) => x.present !== false && Object.keys(x).length > 0);
 
 /** Every row for the given keys, paged by `cursorCol` (500 rows a page). Cached per stage + batch. */
-async function keyedAll(stage: string, layer: string, key: string, keys: string[], columns: string[], cursorCol: string, opts: { batch?: number; filter?: Record<string, unknown>; at?: { lon: number; lat: number } } = {}): Promise<Record<string, unknown>[]> {
+async function keyedAll(stage: string, layer: string, key: string, keys: string[], columns: string[], cursorCol: string, opts: { batch?: number; filter?: Record<string, unknown>; at?: { lon: number; lat: number }; withPilot?: boolean } = {}): Promise<Record<string, unknown>[]> {
   const batch = opts.batch ?? 400;
   const out: Record<string, unknown>[] = [];
   for (let i = 0; i < keys.length; i += batch) {
@@ -95,7 +95,7 @@ async function keyedAll(stage: string, layer: string, key: string, keys: string[
       if (opts.filter) filters.push(opts.filter);
       if (cursor !== null) filters.push({ col: cursorCol, op: ">", value: cursor });
       const filter = filters.length === 0 ? undefined : filters.length === 1 ? filters[0] : { all: filters };
-      const res = await check({ layer, predicate: { op: "keyed", key, keys: keys.slice(i, i + batch) }, columns, order: [{ [cursorCol]: "asc" }], limit: 500, ...(filter ? { filter } : {}) }, opts.at);
+      const res = await check({ layer, predicate: { op: "keyed", key, keys: keys.slice(i, i + batch) }, columns, order: [{ [cursorCol]: "asc" }], limit: 500, ...(filter ? { filter } : {}) }, opts.at, opts.withPilot);
       const rows = claims(res);
       part.push(...rows);
       if (rows.length < 500) break;
@@ -306,6 +306,27 @@ async function main() {
   }
   console.log(`California: voter-approved rates read in ${caByCounty.size} of ${caCounties.length} counties`);
 
+  // 8b. Texas: the Comptroller's taxing units per county. Read only once spatia-data serves the layer stable: a PILOT layer is
+  // never published here. TX_PILOT_PREVIEW=1 reads it with `with_pilot` for a LOCAL look only (the output must not be committed).
+  const txLayer = cat.layers.find((l) => l.id === "tx_property_tax_rates");
+  const txPreview = process.env.TX_PILOT_PREVIEW === "1";
+  const txBy = new Map<string, { id: string; cls: string; name: string; rate: number; sd: string | null; value: number | null }[]>();
+  if (txLayer && (!txLayer.withheld || txPreview)) {
+    if (txLayer.withheld) console.warn("WARNING: TX_PILOT_PREVIEW=1 reads a withheld pilot layer. Do not commit public/data/county/TX.json.");
+    const txCounties = counties.filter((c) => c.startsWith("48"));
+    const rows = await keyedAll(txPreview ? "txpreview" : "tx", "tx_property_tax_rates", "GEOID", txCounties, ["GEOID", "unit_id", "unit_class", "unit_name", "total_rate", "school_district_geoid", "market_value", "taxable_value", "taxable_value_mo", "rates_reported"], "unit_id", { batch: 1, at: { lon: -97.74, lat: 30.27 }, withPilot: !!txLayer.withheld });
+    const CLASSES = new Set(["county", "school_district", "city", "special_district"]);
+    for (const r of rows) {
+      const rate = num(r.total_rate);
+      if (rate === null || rate < 0 || !CLASSES.has(String(r.unit_class)) || r.rates_reported === false) continue;
+      const l = txBy.get(String(r.GEOID)) ?? [];
+      if (l.some((u) => u.id === String(r.unit_id))) continue;
+      l.push({ id: String(r.unit_id), cls: String(r.unit_class), name: String(r.unit_name).replace(/\*+$/, "").trim(), rate, sd: typeof r.school_district_geoid === "string" ? r.school_district_geoid : null, value: num(r.taxable_value) ?? num(r.taxable_value_mo) ?? num(r.market_value) });
+      txBy.set(String(r.GEOID), l);
+    }
+    console.log(`Texas: taxing units in ${txBy.size} counties${txLayer.withheld ? " (PILOT PREVIEW)" : ""}`);
+  } else console.log("Texas: tx_property_tax_rates is withheld (pilot); Texas uses the area rate");
+
   // 9. The county files, by state. A ZIP Treasury does not publish takes the median of the county's published ZIPs (their latest year).
   const hoiCounty = new Map<string, { usd: number; year: number; zips: number }>();
   for (const c of counties) {
@@ -334,6 +355,7 @@ async function main() {
       fl_default_district: flDefault ?? undefined,
       ca_voter_pct: caByCounty.get(c),
       hoi_county: hoiCounty.get(c),
+      tx_units: txBy.get(c)?.sort((a, b) => a.cls.localeCompare(b.cls) || a.name.localeCompare(b.name)),
     };
     byState.set(st, m);
   }
