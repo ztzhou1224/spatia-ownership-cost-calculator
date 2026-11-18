@@ -37,12 +37,10 @@ catalog stops withholding the layer.
 `pnpm data` in this repo reads the layer, writes the Texas units into `public/data/county/TX.json`, and the Texas tax line
 changes from the area rate to the units' rates. No code change is needed.
 
-## Status (2026-11-18)
+## Status (2026-11-18): DONE
 
-- Promotion LANDED on spatia-data `main` (`63bcf52`): `maturity="stable"`, the layer's owner file
-  (`kb/layers/parcel/tx_property_tax_rates/MEMORY.md`) records the evidence and the owner's words. The gate passed.
-- One step remains: the metadata write to the bucket, run from a spatia-data checkout at `origin/main`:
-  `uv run spatia-data refresh-metadata --only tx_property_tax_rates --apply` (dry run: "manifest tx_property_tax_rates:
-  maturity pilot → stable", no sidecar or parquet change).
-- Then, once the query box serves a build with the layer stable: `pnpm data` here, `pnpm build`, and
-  `CLOUDFLARE_API_TOKEN=… pnpm exec wrangler deploy`.
+- Promoted on spatia-data `main` (`63bcf52`); `refresh-metadata --apply --only tx_property_tax_rates` wrote the manifest
+  (read-back: `stable`, `file_hash` 872fe286… unchanged); the box serves it stable from build
+  `20261118T200504Z-ef178c83-9b8156+494671d9a35e`.
+- `pnpm data` read the layer: taxing units in all 254 counties; deployed to cost.runspatia.com. Checked live: 1503 W 9th St,
+  Austin takes Travis (0.3758), Austin ISD (0.9252) and Austin (0.5740) as its default units.

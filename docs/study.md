@@ -56,8 +56,9 @@ the default district, the error can be larger.
 - Treasury's homeowners figure is from 2022. Premiums have risen since in many states. It is the ZIP's average, not this home's.
 - The location is a ZIP code. A ZIP can cross county and district lines; the calculator takes the county with most of the ZIP's
   land.
-- Texas: the path over the Comptroller's rates per taxing unit is built (`src/lib/texas.ts`) and waits for spatia-data to promote
-  `tx_property_tax_rates` (`docs/texas-promotion.md`). Until then Texas uses the area rate.
+- Texas: the Comptroller's rates per taxing unit (`src/lib/texas.ts`; spatia-data `tx_property_tax_rates`, promoted to stable
+  2026-11-18, `docs/texas-promotion.md`). The default units are the county, the school district at the address and the postal
+  city; special districts are the user's to tick. Texas does not publish sale prices, so the figure has no tested range.
 - No closing costs, no tax deduction, no appreciation, no opportunity cost of the down payment.
 - The address lookup (`/api/lookup`, the Worker) answers only a rooftop-grade point from Spatia's geocoder. It reads FEMA's flood
   zone everywhere; in Florida the county roll's use, living area, year built and the parcel's tax district; in Texas the school
@@ -66,8 +67,7 @@ the default district, the error can be larger.
 ## Next steps (for the owner)
 
 1. Done 2026-11-18: the address lookup (the Worker at cost.runspatia.com).
-2. Texas: promote the rate layer in spatia-data (`docs/texas-promotion.md`); later, the Comptroller's property value study as the
-   value ratio.
+2. Done 2026-11-18: Texas's rates per taxing unit. Later: the Comptroller's property value study as the value ratio.
 3. More states with a roll back-test, or the state's sales-ratio study as the value ratio.
 4. A dated index for Treasury's 2022 premiums, only if a published index supports it.
 
