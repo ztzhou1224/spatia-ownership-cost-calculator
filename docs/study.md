@@ -62,7 +62,11 @@ the default district, the error can be larger.
 - No closing costs, no tax deduction, no appreciation, no opportunity cost of the down payment.
 - The address lookup (`/api/lookup`, the Worker) answers only a rooftop-grade point from Spatia's geocoder. It reads FEMA's flood
   zone everywhere; in Florida the county roll's use, living area, year built and the parcel's tax district; in Texas the school
-  district at the point. Other states' home facts are the user's inputs.
+  district at the point; and, in every state, RentCast's property record (owner direction 2026-11-18: "Use rentcast property
+  info for better estimation"): the type, living area, bedrooms, year built, heating fuel, cooling, pool and HOA fee become
+  defaults (the Florida roll wins where it has the fact), and the current owner's latest tax bill is a note on the tax line.
+  Only allowlisted fields are read (`src/lib/rentcast.ts`); no owner field, zoning or APN. Each lookup can cost one RentCast
+  call: the Worker allows 10 lookups a minute per visitor (Cloudflare's rate limiter); there is no daily cap.
 
 ## Next steps (for the owner)
 

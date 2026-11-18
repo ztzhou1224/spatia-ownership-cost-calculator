@@ -7,11 +7,16 @@
  * (`SPATIA_CLIENT_ID` / `SPATIA_CLIENT_SECRET`, Worker secrets; audience `geocode`).
  */
 import { floodZoneOf, rollOf, type AddressFacts, type LookupAnswer } from "../src/lib/lookup";
+import { matchProperty, RENTCAST_PROPERTIES_URL, type PropertyFacts } from "../src/lib/rentcast";
 
 export interface Env {
   ASSETS: { fetch(req: Request): Promise<Response> };
   SPATIA_CLIENT_ID?: string;
   SPATIA_CLIENT_SECRET?: string;
+  /** RentCast's API key (a Worker secret). Without it the lookup reads no property record. */
+  RENTCAST_API_KEY?: string;
+  /** Cloudflare's rate limiter: lookups per visitor a minute (each one can cost a RentCast call). */
+  LOOKUP_LIMIT?: { limit(o: { key: string }): Promise<{ success: boolean }> };
   AUTH_ISSUER: string;
   API_ORIGIN: string;
 }
@@ -87,6 +92,22 @@ async function lookup(env: Env, subject: Record<string, unknown>, checks: Record
   return out;
 }
 
+/** RentCast's record for the geocoded address; any failure is no record (the lookup still answers). */
+async function property(env: Env, label: string): Promise<PropertyFacts | null> {
+  if (!env.RENTCAST_API_KEY) return null;
+  try {
+    const r = await fetch(`${RENTCAST_PROPERTIES_URL}?${new URLSearchParams({ address: label })}`, { headers: { "X-Api-Key": env.RENTCAST_API_KEY, Accept: "application/json" } });
+    if (!r.ok) {
+      console.error("rentcast:", r.status);
+      return null;
+    }
+    return matchProperty(await r.json(), label);
+  } catch {
+    console.error("rentcast: fetch failed");
+    return null;
+  }
+}
+
 export async function answer(env: Env, address: string): Promise<LookupAnswer> {
   const g = await api(env, "/geocode", { q: address });
   if (!g.ok) return { ok: false, reason: g.status === 404 ? "not_found" : "unavailable" };
@@ -101,7 +122,7 @@ export async function answer(env: Env, address: string): Promise<LookupAnswer> {
   const checks: Record<string, unknown>[] = [{ id: "flood", layer: "fema_flood_zones", predicate: { op: "covers" }, columns: ["fld_zone", "sfha_tf"], limit: 10 }];
   if (st === "TX") checks.push({ id: "isd", layer: "us_school_districts_unified", predicate: { op: "covers" }, columns: ["GEOID"], limit: 2 });
   if (st === "FL") checks.push({ id: "roll", layer: "fl_parcels", predicate: { op: "covers" }, columns: ["parcel_id", "county_fips", "dor_uc", "act_yr_blt", "tot_lvg_ar", "no_res_unt", "jv", "asmnt_yr"], limit: 2 });
-  const first = await lookup(env, subject, checks);
+  const [first, prop] = await Promise.all([lookup(env, subject, checks), property(env, res.label)]);
   const rolls = first.get("roll") ?? [];
   // one parcel only: a point on two roll rows (a stacked condominium) gives no roll facts
   const roll = rolls.length === 1 ? rolls[0] : null;
@@ -122,6 +143,7 @@ export async function answer(env: Env, address: string): Promise<LookupAnswer> {
     roll: rollOf(roll),
     flDistrict,
     city: res.components?.city ?? null,
+    property: prop,
     txSchoolDistrict: (() => {
       const isd = first.get("isd") ?? [];
       return isd.length === 1 && typeof isd[0].GEOID === "string" ? isd[0].GEOID : null;
@@ -137,6 +159,10 @@ export default {
       if (request.method !== "GET") return json({ ok: false, reason: "bad_request" }, 405);
       const address = (url.searchParams.get("address") ?? "").trim();
       if (address.length < 5 || address.length > 200) return json({ ok: false, reason: "bad_request" }, 400);
+      if (env.LOOKUP_LIMIT) {
+        const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+        if (!(await env.LOOKUP_LIMIT.limit({ key: ip })).success) return json({ ok: false, reason: "busy" }, 429);
+      }
       try {
         return json(await answer(env, address));
       } catch (e) {

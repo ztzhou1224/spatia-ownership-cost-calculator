@@ -16,6 +16,7 @@ const ERRORS: Record<string, string> = {
   not_trusted: "We could not place this address on a building. Enter a ZIP code for the area's estimates.",
   unavailable: "The address lookup is not available now. Enter a ZIP code.",
   bad_request: "Enter an address, or a 5-digit ZIP code.",
+  busy: "Too many lookups in a minute. Wait a moment, or enter a ZIP code.",
 };
 
 export function App() {
@@ -69,7 +70,7 @@ export function App() {
           </button>
         </form>
         {error && <p className="error">{error}</p>}
-        <p className="privacy">An address is sent to Spatia's geocoder and data service to read the flood zone and the county record. It is not stored.</p>
+        <p className="privacy">An address is sent to Spatia's geocoder and data service and to RentCast to read the flood zone, the county record and the property record. It is not stored.</p>
       </header>
       {place && <Calculator place={place} changed={changed} setChanged={setChanged} setLines={setLines} setSetLines={setSetLines} />}
       <footer className="foot">
@@ -116,6 +117,9 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
                 : st === "FL"
                   ? "; no single parcel on the county roll at this point"
                   : ""}
+              {place.facts.property
+                ? `; RentCast's property record: ${place.facts.property.propertyType ?? "type not stated"}${place.facts.property.bedrooms !== null ? `, ${place.facts.property.bedrooms} bedrooms` : ""}${place.facts.property.squareFootage ? `, ${place.facts.property.squareFootage.toLocaleString("en-US")} sq ft` : ""}${place.facts.property.yearBuilt ? `, built ${place.facts.property.yearBuilt}` : ""}`
+                : "; no RentCast property record matched this address"}
               .
             </>
           )}
@@ -133,7 +137,7 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
           <OptNum label="Bedrooms" step={1} {...field("bedrooms")} />
           <OptNum label="Year built" step={1} {...field("yearBuilt")} />
           <Select label="Heating" options={[["electric_heat", "Electric or heat pump"], ["gas_heat", "Natural gas"]]} {...field("heating")} />
-          <Select label="Air conditioning" options={[[null, "Not known"], ["central", "Central"], ["room", "Room units"], ["none", "None"]]} {...field("cooling")} />
+          <Select label="Air conditioning" options={[[null, "Not known"], ["central", "Central"], ["room", "Room units"], ["any", "Yes, type not known"], ["none", "None"]]} {...field("cooling")} />
           <Select label="Pool" options={[[null, "Not known"], [true, "Yes"], [false, "No"]]} {...field("pool")} />
         </Group>
         <Group title="You and the place">

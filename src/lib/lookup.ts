@@ -2,6 +2,7 @@
  * The address lookup's shape and its pure parts, shared by the Worker (`workers/app.ts`) and the page. The Worker asks Spatia's
  * geocoder (`/geocode`), then the data service (`/query`) at the point; only a trusted (rooftop-grade) point is answered.
  */
+import type { PropertyFacts } from "./rentcast";
 import type { HomeType } from "./tax";
 
 export interface AddressFacts {
@@ -30,9 +31,11 @@ export interface AddressFacts {
   txSchoolDistrict?: string | null;
   /** The geocoder's city: the POSTAL city, which can lie outside the city limits. */
   city?: string | null;
+  /** RentCast's property record for the address (allowlisted), when one record matches it. */
+  property?: PropertyFacts | null;
 }
 
-export type LookupAnswer = { ok: true; facts: AddressFacts } | { ok: false; reason: "not_found" | "not_trusted" | "unavailable" | "bad_request" };
+export type LookupAnswer = { ok: true; facts: AddressFacts } | { ok: false; reason: "not_found" | "not_trusted" | "unavailable" | "bad_request" | "busy" };
 
 /** Florida's DOR use codes the calculator maps to a home type; any other use is no type. */
 export const FL_DOR_TYPE: Readonly<Record<string, HomeType>> = { "001": "house", "002": "mobile", "004": "condo", "005": "condo" };

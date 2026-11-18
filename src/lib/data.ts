@@ -11,7 +11,7 @@ async function getJson<T>(url: string): Promise<T | null> {
   return (await cache.get(url)) as T | null;
 }
 
-export type LoadResult = { ok: true; place: Place } | { ok: false; reason: "format" | "unknown" | "not_found" | "not_trusted" | "unavailable" | "bad_request" };
+export type LoadResult = { ok: true; place: Place } | { ok: false; reason: "format" | "unknown" | "not_found" | "not_trusted" | "unavailable" | "bad_request" | "busy" };
 
 export async function loadPlace(zip: string, facts: AddressFacts | null = null, base = import.meta.env.BASE_URL): Promise<LoadResult> {
   if (!/^\d{5}$/.test(zip)) return { ok: false, reason: "format" };

@@ -323,3 +323,26 @@ export function yearBandOf(yearBuilt: number | null): EnergyYearBand | null {
 /** The smallest and largest living area the survey holds (RECS `SQFTEST` 240–15,000); outside it the formula is not applied. */
 export const SQFT_MIN = 240;
 export const SQFT_MAX = 15000;
+
+/**
+ * RentCast's cooling (copied from spatia-report energy.ts `coolingOf`): `coolingType` "Central" → central; another named type →
+ * room units; `cooling === true` without a type → `any`; `cooling === false` → none; absent → unknown (the survey's share).
+ */
+export function coolingOf(f: { cooling?: boolean | null; coolingType?: string | null }): EnergyCooling | null {
+  const t = typeof f.coolingType === "string" ? f.coolingType.trim() : "";
+  if (/^none$/i.test(t)) return "none";
+  if (/central/i.test(t)) return "central";
+  if (t !== "") return "room";
+  if (f.cooling === true) return "any";
+  if (f.cooling === false) return "none";
+  return null;
+}
+
+/** The heating fuel, only when RentCast's `heatingType` names one (copied from spatia-report energy.ts `heatingCaseOf`). */
+export function heatingCaseOf(heatingType: unknown): HeatingCase | null {
+  if (typeof heatingType !== "string") return null;
+  if (/propane|oil/i.test(heatingType)) return null;
+  if (/\bgas\b/i.test(heatingType)) return "gas_heat";
+  if (/electric|heat\s*pump/i.test(heatingType)) return "electric_heat";
+  return null;
+}

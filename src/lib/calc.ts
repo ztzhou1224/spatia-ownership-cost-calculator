@@ -3,7 +3,7 @@
  * be set directly. `defaultsFor` makes the defaults; `calculate` makes the lines from the defaults merged with the user's changes.
  */
 import national from "../data/national.generated.json";
-import type { EnergyCooling, HeatingCase } from "./energy";
+import { coolingOf, heatingCaseOf, type EnergyCooling, type HeatingCase } from "./energy";
 import { energyCost } from "./energy-cost";
 import { floodInsurance, homeownersInsurance, type FloodZone } from "./insurance";
 import { defaultPmiPct, monthlyPayment, pmiEndMonth } from "./mortgage";
@@ -92,12 +92,15 @@ export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSo
   const price = c?.area_tax?.median_value ?? DEFAULT_PRICE;
   const downPct = 20;
   const gasShare = st?.gas_share ?? 0;
-  const heating: HeatingCase = st?.gas_usd_per_mcf !== null && st?.gas_usd_per_mcf !== undefined && gasShare >= GAS_SHARE_FOR_GAS_HEAT ? "gas_heat" : "electric_heat";
   const f = p.facts ?? null;
   const roll = f?.roll ?? null;
   const district = p.zipData.st === "FL" ? flDistrictOf(c, f?.flDistrict) : null;
   const fromRollDistrict = !!f?.flDistrict && district?.code === f.flDistrict;
-  const homeType = roll?.homeType ?? "house";
+  const rc = f?.property ?? null;
+  const homeType = roll?.homeType ?? rc?.homeType ?? "house";
+  const rcHeating = rc ? heatingCaseOf(rc.heatingType) : null;
+  const rcCooling = rc ? coolingOf(rc) : null;
+  const heating: HeatingCase = rcHeating ?? (st?.gas_usd_per_mcf !== null && st?.gas_usd_per_mcf !== undefined && gasShare >= GAS_SHARE_FOR_GAS_HEAT ? "gas_heat" : "electric_heat");
   const tx = p.zipData.st === "TX" && c?.tx_units?.length ? txDefaultUnits(c.tx_units, f?.txSchoolDistrict ?? null, f?.city ?? null) : null;
   const values: Assumptions = {
     price,
@@ -106,12 +109,12 @@ export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSo
     termYears: 30,
     pmiPct: defaultPmiPct(downPct),
     homeType,
-    sqft: roll?.livingSqft ?? TYPICAL_SQFT[homeType],
-    bedrooms: null,
-    yearBuilt: roll?.yearBuilt ?? null,
+    sqft: roll?.livingSqft ?? rc?.squareFootage ?? TYPICAL_SQFT[homeType],
+    bedrooms: rc?.bedrooms ?? null,
+    yearBuilt: roll?.yearBuilt ?? rc?.yearBuilt ?? null,
     heating,
-    cooling: null,
-    pool: null,
+    cooling: rcCooling,
+    pool: rc?.pool ?? null,
     liveInHome: true,
     floodZone: f?.floodZone ?? "outside",
     buyFlood: f?.floodZone === "sfha",
@@ -119,7 +122,7 @@ export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSo
     txUnits: tx?.ids ?? [],
     electricityUsdPerKwh: st?.electricity_usd_per_kwh ?? 0.17,
     gasUsdPerMcf: st?.gas_usd_per_mcf ?? null,
-    hoaMonthly: 0,
+    hoaMonthly: rc?.hoaFee ?? 0,
     waterMonthly: WATER_MONTHLY,
     maintenancePct: MAINTENANCE_PCT,
   };
@@ -129,13 +132,13 @@ export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSo
     ratePct: `${NATIONAL.mortgage.source}, 30-year fixed, week of ${NATIONAL.mortgage.week_of}.`,
     termYears: "The most common loan term.",
     pmiPct: "A typical yearly mortgage insurance rate for this down payment. A lender quotes yours.",
-    homeType: roll?.homeType ? `The county roll: ${roll.useLabel}.` : "Choose the type of home.",
-    sqft: roll?.livingSqft ? `The county roll's living area (${roll.rollYear} roll).` : "A typical size for this type of home. Enter the listing's living area.",
-    bedrooms: "Not known: the survey's average is used.",
-    yearBuilt: roll?.yearBuilt ? `The county roll's year built (${roll.rollYear} roll).` : "Not known: the survey's mix of ages is used.",
-    heating: heating === "gas_heat" ? "Gas: most homes in this state buy gas (EIA customer counts)." : "Electric: most homes in this state do not buy gas (EIA customer counts).",
-    cooling: "Not known: the share of homes with air conditioning in this climate is used.",
-    pool: "Not known: the survey's share is used.",
+    homeType: roll?.homeType ? `The county roll: ${roll.useLabel}.` : rc?.homeType ? `RentCast's property record: ${rc.propertyType}.` : "Choose the type of home.",
+    sqft: roll?.livingSqft ? `The county roll's living area (${roll.rollYear} roll).` : rc?.squareFootage ? "RentCast's property record." : "A typical size for this type of home. Enter the listing's living area.",
+    bedrooms: rc?.bedrooms !== null && rc?.bedrooms !== undefined ? "RentCast's property record." : "Not known: the survey's average is used.",
+    yearBuilt: roll?.yearBuilt ? `The county roll's year built (${roll.rollYear} roll).` : rc?.yearBuilt ? "RentCast's property record." : "Not known: the survey's mix of ages is used.",
+    heating: rcHeating ? `RentCast's property record: ${rc!.heatingType}.` : heating === "gas_heat" ? "Gas: most homes in this state buy gas (EIA customer counts)." : "Electric: most homes in this state do not buy gas (EIA customer counts).",
+    cooling: rcCooling ? `RentCast's property record${rc!.coolingType ? `: ${rc!.coolingType}` : ""}.` : "Not known: the share of homes with air conditioning in this climate is used.",
+    pool: rc?.pool !== null && rc?.pool !== undefined ? "RentCast's property record." : "Not known: the survey's share is used.",
     liveInHome: "You will live in the home (applies homestead exemptions where modelled).",
     floodZone: f?.floodZone
       ? `FEMA's flood map at this address: zone ${f.floodZoneCode ?? "?"}.`
@@ -151,7 +154,7 @@ export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSo
       : "Texas only.",
     electricityUsdPerKwh: st?.electricity_usd_per_kwh ? `EIA's ${st.electricity_year} state average residential price.` : "A national placeholder. Enter your utility's price.",
     gasUsdPerMcf: st?.gas_usd_per_mcf ? `EIA's ${st.gas_year} state average residential gas price, per thousand cubic feet.` : "Not published for this state.",
-    hoaMonthly: "No public source. Enter the association's fee from the listing.",
+    hoaMonthly: rc?.hoaFee ? "RentCast's property record (the total monthly HOA fee or assessment). Check it with the association." : "No public source. Enter the association's fee from the listing.",
     waterMonthly: "An assumption for a typical household. Ask for the seller's bills.",
     maintenancePct: "The common rule of 1 % of the price a year. Older homes often need more.",
   };
@@ -167,8 +170,8 @@ export function resolveAssumptions(p: Place, changed: Partial<Assumptions>): { v
   const defaults: Assumptions = { ...base.values };
   const sources = { ...base.sources };
   const pick = <K extends AssumptionKey>(k: K): Assumptions[K] => (k in changed ? (changed[k] as Assumptions[K]) : defaults[k]);
-  const rollSqft = p.facts?.roll?.livingSqft;
-  defaults.sqft = rollSqft && pick("homeType") === base.values.homeType ? rollSqft : TYPICAL_SQFT[pick("homeType")];
+  const factSqft = p.facts?.roll?.livingSqft ?? p.facts?.property?.squareFootage;
+  defaults.sqft = factSqft && pick("homeType") === base.values.homeType ? factSqft : TYPICAL_SQFT[pick("homeType")];
   defaults.pmiPct = defaultPmiPct(pick("downPct"));
   defaults.buyFlood = pick("floodZone") === "sfha";
   sources.buyFlood = defaults.buyFlood ? "Included: a lender requires flood insurance in the high-risk zone." : "Flood insurance is required only in the high-risk zone with a federally backed loan.";
@@ -212,7 +215,9 @@ export function calculate(p: Place, a: Assumptions, set: Partial<Record<LineKey,
   ]);
 
   const tax = propertyTax({ st, county: p.zipData.county, price: a.price, homeType: a.homeType, liveInHome: a.liveInHome, flDistrict: a.flDistrict, txUnits: a.txUnits }, p.county, NATIONAL.ca_voter_pct_median);
-  push("tax", "Property tax", tax, tax?.source ?? "", tax ? [`Method: ${tax.method}; an effective rate of ${tax.effectivePct.toFixed(2)} %.`, ...tax.notes] : []);
+  const bill = p.facts?.property?.lastTax ?? null;
+  const billNote = bill ? [`The current owner's ${bill.year} tax bill was $${Math.round(bill.total).toLocaleString("en-US")} (RentCast's property record). It carries that owner's value and exemptions, so a new owner's bill can differ.`] : [];
+  push("tax", "Property tax", tax, tax?.source ?? "", tax ? [`Method: ${tax.method}; an effective rate of ${tax.effectivePct.toFixed(2)} %.`, ...tax.notes, ...billNote] : billNote);
 
   const hoi = homeownersInsurance(p.zipData, p.county);
   push("home_insurance", a.homeType === "condo" ? "Homeowners insurance (a condo policy usually costs less)" : "Homeowners insurance", hoi, hoi?.source ?? "", hoi?.notes ?? []);

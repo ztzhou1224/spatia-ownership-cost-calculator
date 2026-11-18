@@ -9,10 +9,13 @@
   "preview_urls": false,
   "routes": [{ "pattern": "cost.runspatia.com", "custom_domain": true }],
   "observability": { "enabled": true },
+  // Each address lookup can cost a RentCast call: at most 10 a minute per visitor (Cloudflare's rate limiter, no stored state).
+  "ratelimits": [{ "name": "LOOKUP_LIMIT", "namespace_id": "4101", "simple": { "limit": 10, "period": 60 } }],
   "assets": { "directory": "./dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
   "vars": {
     "AUTH_ISSUER": "https://auth.runspatia.com",
     "API_ORIGIN": "https://api.runspatia.com"
   }
-  // Secrets (wrangler secret put): SPATIA_CLIENT_ID, SPATIA_CLIENT_SECRET — a spatia-auth service client, audience `geocode`.
+  // Secrets (wrangler secret put): SPATIA_CLIENT_ID, SPATIA_CLIENT_SECRET — a spatia-auth service client, audience `geocode`;
+  // RENTCAST_API_KEY — RentCast's property records (without it the lookup reads none).
 }
