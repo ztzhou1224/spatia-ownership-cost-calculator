@@ -1,0 +1,19 @@
+# Spatia ownership cost calculator (pilot)
+
+What a home costs to own each month: the loan, mortgage insurance, property tax, homeowners and flood insurance, the HOA fee,
+electricity and gas, water and upkeep. Enter a ZIP code. Every input starts from an estimate for that place; change any input, or
+type your own figure for any cost.
+
+The method and the sources are in [docs/study.md](docs/study.md).
+
+```bash
+pnpm install
+pnpm dev        # the app on http://localhost:5173/?zip=33606
+pnpm test       # the estimate rules
+pnpm build      # typecheck and the static site in dist/
+pnpm data       # rebuild the data tables (needs a Spatia data-service token; see docs/study.md)
+```
+
+The app is a static site: the data tables are JSON files under `public/data/` and `src/data/`, built by `scripts/build-data.ts`.
+Two modules come from Spatia Home (`spatia-report`): the RECS energy formula (`src/lib/energy.ts`,
+`src/data/energy-formula.generated.json`) and Florida's tax back-test (`src/data/fl-tax.generated.json`, trimmed by the build).

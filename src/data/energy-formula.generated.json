@@ -1,0 +1,196 @@
+{
+  "formula_version": "2026-10-20.1",
+  "source": {
+    "title": "EIA 2020 Residential Energy Consumption Survey (RECS), public-use microdata, version 7",
+    "url": "https://www.eia.gov/consumption/residential/data/2020/csv/recs2020_public_v7.csv",
+    "file": "recs2020_public_v7.csv",
+    "sha256": "8d5f6d3120d2cbc2535151c7d455e7a536ca9768f773e15edd45932ec38b3592",
+    "data_year": 2020
+  },
+  "predictors": [
+    "intercept",
+    "ln_sqft",
+    "mobile",
+    "attached",
+    "apartment_2_4",
+    "apartment_5_plus",
+    "pre1950",
+    "y1950_1979",
+    "y2000_plus",
+    "hdd_k",
+    "cdd_k_ac",
+    "cdd_k_no_ac",
+    "central_ac",
+    "pool",
+    "bedrooms",
+    "new_england",
+    "middle_atlantic",
+    "west_north_central",
+    "south_atlantic",
+    "east_south_central",
+    "west_south_central",
+    "mountain_north",
+    "mountain_south",
+    "pacific",
+    "california"
+  ],
+  "equations": {
+    "kwh_electric_heat": {
+      "coefficients": [
+        6.61306,
+        0.326311,
+        0.0568828,
+        -0.175494,
+        -0.251837,
+        -0.396673,
+        0.0405393,
+        0.0378203,
+        -0.075148,
+        0.0306282,
+        0.0211219,
+        0.0244331,
+        0.0600266,
+        0.226211,
+        0.105545,
+        -0.302766,
+        -0.052154,
+        0.0517132,
+        0.0669287,
+        0.0932775,
+        0.15684,
+        -0.096782,
+        0.0318472,
+        0.0470663,
+        -0.489515
+      ],
+      "residual_p10": -0.541095,
+      "residual_p90": 0.516874,
+      "n": 5699,
+      "r2_log": 0.522771,
+      "cv_median_abs_pct_error": 0.250937
+    },
+    "kwh_gas_heat": {
+      "coefficients": [
+        6.00476,
+        0.320458,
+        0.0558269,
+        -0.145169,
+        -0.266179,
+        -0.345252,
+        0.00359918,
+        -0.000959824,
+        -0.0310936,
+        0.0107751,
+        0.120421,
+        0.0134521,
+        0.162872,
+        0.336234,
+        0.0984607,
+        -0.0874266,
+        -0.0516619,
+        0.0652026,
+        0.125345,
+        0.223553,
+        0.134722,
+        -0.0689578,
+        -0.0688417,
+        0.08194,
+        -0.292704
+      ],
+      "residual_p10": -0.55948,
+      "residual_p90": 0.560552,
+      "n": 9595,
+      "r2_log": 0.495117,
+      "cv_median_abs_pct_error": 0.275995
+    },
+    "ccf_gas_heat": {
+      "coefficients": [
+        2.76259,
+        0.438691,
+        -0.0655363,
+        -0.131148,
+        -0.0893058,
+        -0.529075,
+        0.17212,
+        0.100365,
+        -0.120616,
+        0.094427,
+        -0.106582,
+        -0.12275,
+        -0.0372797,
+        0.117601,
+        0.0596598,
+        -0.0614046,
+        0.00283357,
+        -0.0751816,
+        -0.170634,
+        -0.153727,
+        -0.110138,
+        -0.0222147,
+        -0.0198363,
+        -0.266741,
+        0.0100637
+      ],
+      "residual_p10": -0.534529,
+      "residual_p90": 0.510886,
+      "n": 9595,
+      "r2_log": 0.508637,
+      "cv_median_abs_pct_error": 0.253932
+    }
+  },
+  "fill": {
+    "year_band_share": {
+      "pre1950": 0.163982,
+      "1950_1979": 0.352749,
+      "2000_plus": 0.212449
+    },
+    "bedrooms_by_housing": {
+      "mobile": 2.63254,
+      "detached": 3.25556,
+      "attached": 2.56867,
+      "apartment_2_4": 1.90462,
+      "apartment_5_plus": 1.54011
+    },
+    "pool_by_housing": {
+      "mobile": 0.0343255,
+      "detached": 0.104942,
+      "attached": 0.0266581,
+      "apartment_2_4": 0,
+      "apartment_5_plus": 0
+    },
+    "cooling_by_cdd": [
+      {
+        "cdd_max": 500,
+        "ac": 0.537229,
+        "central": 0.268409
+      },
+      {
+        "cdd_max": 1000,
+        "ac": 0.866474,
+        "central": 0.574248
+      },
+      {
+        "cdd_max": 2000,
+        "ac": 0.920162,
+        "central": 0.693389
+      },
+      {
+        "cdd_max": null,
+        "ac": 0.943807,
+        "central": 0.82545
+      }
+    ],
+    "region_share": {
+      "new_england": 0.0475691,
+      "middle_atlantic": 0.129876,
+      "west_north_central": 0.0687759,
+      "south_atlantic": 0.201113,
+      "east_south_central": 0.0597488,
+      "west_south_central": 0.118345,
+      "mountain_north": 0.0373665,
+      "mountain_south": 0.037255,
+      "pacific": 0.149808,
+      "california": 0.106703
+    }
+  }
+}
