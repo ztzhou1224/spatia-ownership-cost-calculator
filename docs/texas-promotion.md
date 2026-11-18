@@ -36,3 +36,13 @@ catalog stops withholding the layer.
 
 `pnpm data` in this repo reads the layer, writes the Texas units into `public/data/county/TX.json`, and the Texas tax line
 changes from the area rate to the units' rates. No code change is needed.
+
+## Status (2026-11-18)
+
+- Promotion LANDED on spatia-data `main` (`63bcf52`): `maturity="stable"`, the layer's owner file
+  (`kb/layers/parcel/tx_property_tax_rates/MEMORY.md`) records the evidence and the owner's words. The gate passed.
+- One step remains: the metadata write to the bucket, run from a spatia-data checkout at `origin/main`:
+  `uv run spatia-data refresh-metadata --only tx_property_tax_rates --apply` (dry run: "manifest tx_property_tax_rates:
+  maturity pilot → stable", no sidecar or parquet change).
+- Then, once the query box serves a build with the layer stable: `pnpm data` here, `pnpm build`, and
+  `CLOUDFLARE_API_TOKEN=… pnpm exec wrangler deploy`.
