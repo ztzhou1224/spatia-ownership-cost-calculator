@@ -8,6 +8,8 @@
 import type { HomeType } from "./tax";
 
 export const RENTCAST_PROPERTIES_URL = "https://api.rentcast.io/v1/properties";
+/** Sale listings (owner direction 2026-11-18, "Use asking price from rentcast"): this address's ACTIVE listing only. */
+export const RENTCAST_LISTINGS_URL = "https://api.rentcast.io/v1/listings/sale";
 
 export interface PropertyFacts {
   formattedAddress: string;
@@ -105,6 +107,39 @@ function key(address: string): { street: string; zip: string | null } {
  */
 export function matchProperty(body: unknown, label: string): PropertyFacts | null {
   const recs = (Array.isArray(body) ? body : [body]).map(parseProperty).filter((x): x is PropertyFacts => x !== null);
+  const want = key(label);
+  const hits = recs.filter((r) => {
+    const k = key(r.formattedAddress);
+    return k.street === want.street && (!want.zip || k.zip === want.zip);
+  });
+  return hits.length === 1 ? hits[0] : null;
+}
+
+/**
+ * The home's active sale listing, allowlisted: the asking price, when it was listed, the days on the market and the HOA fee the
+ * listing states. Never the listing agent, the office, the MLS name or number, or the builder.
+ */
+export interface ListingFacts {
+  formattedAddress: string;
+  price: number;
+  listedDate: string | null;
+  daysOnMarket: number | null;
+  hoaFee: number | null;
+}
+
+export function parseListing(r: unknown): ListingFacts | null {
+  if (!isObj(r) || r.status !== "Active") return null;
+  const formattedAddress = str(r.formattedAddress);
+  const price = pos(r.price);
+  if (!formattedAddress || price === null) return null;
+  const hoa = isObj(r.hoa) ? r.hoa : {};
+  const listed = str(r.listedDate);
+  return { formattedAddress, price, listedDate: listed ? listed.slice(0, 10) : null, daysOnMarket: num(r.daysOnMarket), hoaFee: pos(hoa.fee) };
+}
+
+/** The address's one active listing (the same street-line and ZIP match as the property record). */
+export function matchListing(body: unknown, label: string): ListingFacts | null {
+  const recs = (Array.isArray(body) ? body : [body]).map(parseListing).filter((x): x is ListingFacts => x !== null);
   const want = key(label);
   const hits = recs.filter((r) => {
     const k = key(r.formattedAddress);

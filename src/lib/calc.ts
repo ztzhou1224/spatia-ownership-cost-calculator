@@ -102,7 +102,8 @@ function flatSource(p: Place): string {
 export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSources } {
   const st = p.state;
   const c = p.county;
-  const price = c?.area_tax?.median_value ?? DEFAULT_PRICE;
+  const listing = p.facts?.listing ?? null;
+  const price = listing?.price ?? c?.area_tax?.median_value ?? DEFAULT_PRICE;
   const downPct = 20;
   const gasShare = st?.gas_share ?? 0;
   const f = p.facts ?? null;
@@ -135,13 +136,17 @@ export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSo
     txUnits: tx?.ids ?? [],
     electricityUsdPerKwh: st?.electricity_usd_per_kwh ?? 0.17,
     gasUsdPerMcf: st?.gas_usd_per_mcf ?? null,
-    hoaMonthly: rc?.hoaFee ?? 0,
+    hoaMonthly: rc?.hoaFee ?? listing?.hoaFee ?? 0,
     flatChargesYearly: f?.flatCharges?.amount ?? 0,
     waterMonthly: WATER_MONTHLY,
     maintenancePct: MAINTENANCE_PCT,
   };
   const sources: DefaultSources = {
-    price: c?.area_tax?.median_value ? "The county's typical home value (Census ACS 5-year). Enter your price." : "A placeholder. Enter your price.",
+    price: listing
+      ? `The asking price on RentCast's sale listing${listing.listedDate ? `, listed ${listing.listedDate}` : ""}. Enter the price you will pay.`
+      : c?.area_tax?.median_value
+        ? "The county's typical home value (Census ACS 5-year): no active listing found. Enter your price."
+        : "A placeholder. Enter your price.",
     downPct: "20 %: the down payment that needs no mortgage insurance on a conventional loan.",
     ratePct: `${NATIONAL.mortgage.source}, 30-year fixed, week of ${NATIONAL.mortgage.week_of}.`,
     termYears: "The most common loan term.",
@@ -169,7 +174,11 @@ export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSo
     electricityUsdPerKwh: st?.electricity_usd_per_kwh ? `EIA's ${st.electricity_year} state average residential price.` : "A national placeholder. Enter your utility's price.",
     gasUsdPerMcf: st?.gas_usd_per_mcf ? `EIA's ${st.gas_year} state average residential gas price, per thousand cubic feet.` : "Not published for this state.",
     flatChargesYearly: flatSource(p),
-    hoaMonthly: rc?.hoaFee ? "RentCast's property record (the total monthly HOA fee or assessment). Check it with the association." : "No public source. Enter the association's fee from the listing.",
+    hoaMonthly: rc?.hoaFee
+      ? "RentCast's property record (the total monthly HOA fee or assessment). Check it with the association."
+      : listing?.hoaFee
+        ? "RentCast's sale listing. Check it with the association."
+        : "No public source. Enter the association's fee from the listing.",
     waterMonthly: "An assumption for a typical household. Ask for the seller's bills.",
     maintenancePct: "The common rule of 1 % of the price a year. Older homes often need more.",
   };

@@ -12,7 +12,7 @@ own figure for any cost line.
 
 | Line | Method | Source of the default | Range |
 |---|---|---|---|
-| Principal and interest | Standard amortised payment | Freddie Mac PMMS 30-year rate, latest week; 20 % down; 30 years | None (exact for the inputs) |
+| Principal and interest | Standard amortised payment | The asking price on RentCast's active listing (else the county's typical value); Freddie Mac PMMS 30-year rate, latest week; 20 % down; 30 years | None (exact for the inputs) |
 | Mortgage insurance | Loan × a yearly rate, until the loan is 78 % of the price | An assumed rate by down payment (`mortgage.ts` `PMI_BY_DOWN`); a lender quotes the real one | None |
 | Property tax | See "Property tax" below | Florida DOR rolls and district rates; California's 1 % levy and rate books; Census ACS | Florida only, where the back-test passed |
 | Homeowners insurance | The ZIP's average premium per policy, as published | U.S. Treasury FIO, ZIP, latest year (2022) | None |
@@ -70,6 +70,9 @@ the default district, the error can be larger.
   defaults (the Florida roll wins where it has the fact), and the current owner's latest tax bill is a note on the tax line.
   Only allowlisted fields are read (`src/lib/rentcast.ts`); no owner field, zoning or APN. Each lookup can cost one RentCast
   call: the Worker allows 10 lookups a minute per visitor (Cloudflare's rate limiter); there is no daily cap.
+  Since the same day (owner: "Use asking price from rentcast") the lookup also reads RentCast's ACTIVE sale listing for the
+  address (`/v1/listings/sale`, a second call): its asking price is the price default (else the county's typical value), and
+  its HOA fee fills the fee when the property record has none. Never the listing agent, office or MLS fields.
 
 ## Next steps (for the owner)
 

@@ -120,6 +120,7 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
               {place.facts.flatCharges?.amount !== null && place.facts.flatCharges?.amount !== undefined
                 ? `; flat charges on the county tax roll $${place.facts.flatCharges.amount.toLocaleString("en-US", { maximumFractionDigits: 0 })} a year`
                 : ""}
+              {place.facts.listing ? `; listed for sale at $${place.facts.listing.price.toLocaleString("en-US")}${place.facts.listing.listedDate ? ` since ${place.facts.listing.listedDate}` : ""}` : ""}
               {place.facts.property
                 ? `; RentCast's property record: ${place.facts.property.propertyType ?? "type not stated"}${place.facts.property.bedrooms !== null ? `, ${place.facts.property.bedrooms} bedrooms` : ""}${place.facts.property.squareFootage ? `, ${place.facts.property.squareFootage.toLocaleString("en-US")} sq ft` : ""}${place.facts.property.yearBuilt ? `, built ${place.facts.property.yearBuilt}` : ""}`
                 : "; no RentCast property record matched this address"}

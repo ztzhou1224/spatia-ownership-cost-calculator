@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolveAssumptions } from "./calc";
-import { matchProperty, parseProperty } from "./rentcast";
+import { matchListing, matchProperty, parseListing, parseProperty } from "./rentcast";
 import type { Place } from "./types";
 
 const record = {
@@ -61,5 +61,44 @@ describe("defaults from RentCast", () => {
     expect(sources.hoaMonthly).toContain("RentCast");
     // "Forced Air" names no fuel: the state's default heating stays
     expect(values.heating).toBe("gas_heat");
+  });
+});
+
+const listingRec = {
+  formattedAddress: "700 S Harbour Island Blvd, Unit 326, Tampa, FL 33602",
+  status: "Active",
+  price: 770000,
+  listedDate: "2023-07-01T00:00:00.000Z",
+  daysOnMarket: 1237,
+  hoa: { fee: 658 },
+  listingAgent: { name: "AN AGENT", phone: "555" },
+  listingOffice: { name: "AN OFFICE" },
+  mlsName: "StellarMLS",
+  mlsNumber: "T3453505",
+};
+
+describe("RentCast's sale listing", () => {
+  it("keeps the asking price, the listed date and the HOA fee; never the agent, the office or the MLS", () => {
+    const l = parseListing(listingRec)!;
+    expect(l).toEqual({ formattedAddress: listingRec.formattedAddress, price: 770000, listedDate: "2023-07-01", daysOnMarket: 1237, hoaFee: 658 });
+    for (const banned of ["AN AGENT", "AN OFFICE", "StellarMLS", "T3453505"]) expect(JSON.stringify(l)).not.toContain(banned);
+    expect(parseListing({ ...listingRec, status: "Inactive" })).toBeNull();
+  });
+  it("matches the unit, not the building's other units", () => {
+    expect(matchListing([listingRec], "700 S Harbour Island Blvd, Unit 326, Tampa, FL 33602")?.price).toBe(770000);
+    expect(matchListing([listingRec], "700 S Harbour Island Blvd, Unit 327, Tampa, FL 33602")).toBeNull();
+  });
+  it("the asking price becomes the price default, with its source", () => {
+    const place = {
+      zip: "33602",
+      zipData: { st: "FL", county: "12057", lat: 27.9, lon: -82.4, hoi: null, climate: { station: "TAMPA", hdd: 500, cdd: 3800, km: 5 } },
+      county: { area_tax: { rate_pct: 0.9, tracts: 1, owners: 1, median_value: 400000 }, flood: null },
+      state: null,
+      facts: { label: listingRec.formattedAddress, zip: "33602", st: "FL", county: null, floodZone: null, floodZoneCode: null, roll: null, flDistrict: null, listing: parseListing(listingRec) },
+    };
+    const { values, sources } = resolveAssumptions(place as never, {});
+    expect(values.price).toBe(770000);
+    expect(values.hoaMonthly).toBe(658);
+    expect(sources.price).toContain("asking price");
   });
 });

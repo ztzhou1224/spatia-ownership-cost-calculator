@@ -2,7 +2,7 @@
  * The address lookup's shape and its pure parts, shared by the Worker (`workers/app.ts`) and the page. The Worker asks Spatia's
  * geocoder (`/geocode`), then the data service (`/query`) at the point; only a trusted (rooftop-grade) point is answered.
  */
-import type { PropertyFacts } from "./rentcast";
+import type { ListingFacts, PropertyFacts } from "./rentcast";
 import type { HomeType } from "./tax";
 
 export interface AddressFacts {
@@ -39,6 +39,8 @@ export interface AddressFacts {
   city?: string | null;
   /** RentCast's property record for the address (allowlisted), when one record matches it. */
   property?: PropertyFacts | null;
+  /** RentCast's active sale listing for the address: the asking price. */
+  listing?: ListingFacts | null;
 }
 
 export type LookupAnswer = { ok: true; facts: AddressFacts } | { ok: false; reason: "not_found" | "not_trusted" | "unavailable" | "bad_request" | "busy" };

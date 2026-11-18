@@ -7,7 +7,7 @@
  * (`SPATIA_CLIENT_ID` / `SPATIA_CLIENT_SECRET`, Worker secrets; audience `geocode`).
  */
 import { floodZoneOf, rollOf, type AddressFacts, type LookupAnswer } from "../src/lib/lookup";
-import { matchProperty, RENTCAST_PROPERTIES_URL, type PropertyFacts } from "../src/lib/rentcast";
+import { matchListing, matchProperty, RENTCAST_LISTINGS_URL, RENTCAST_PROPERTIES_URL, type ListingFacts, type PropertyFacts } from "../src/lib/rentcast";
 
 export interface Env {
   ASSETS: { fetch(req: Request): Promise<Response> };
@@ -108,6 +108,22 @@ async function property(env: Env, label: string): Promise<PropertyFacts | null> 
   }
 }
 
+/** RentCast's active sale listing for the address; any failure, or no listing, is none. */
+async function listing(env: Env, label: string): Promise<ListingFacts | null> {
+  if (!env.RENTCAST_API_KEY) return null;
+  try {
+    const r = await fetch(`${RENTCAST_LISTINGS_URL}?${new URLSearchParams({ address: label, status: "Active" })}`, { headers: { "X-Api-Key": env.RENTCAST_API_KEY, Accept: "application/json" } });
+    if (!r.ok) {
+      if (r.status !== 404) console.error("rentcast listing:", r.status);
+      return null;
+    }
+    return matchListing(await r.json(), label);
+  } catch {
+    console.error("rentcast listing: fetch failed");
+    return null;
+  }
+}
+
 export async function answer(env: Env, address: string): Promise<LookupAnswer> {
   const g = await api(env, "/geocode", { q: address });
   if (!g.ok) return { ok: false, reason: g.status === 404 ? "not_found" : "unavailable" };
@@ -122,7 +138,7 @@ export async function answer(env: Env, address: string): Promise<LookupAnswer> {
   const checks: Record<string, unknown>[] = [{ id: "flood", layer: "fema_flood_zones", predicate: { op: "covers" }, columns: ["fld_zone", "sfha_tf"], limit: 10 }];
   if (st === "TX") checks.push({ id: "isd", layer: "us_school_districts_unified", predicate: { op: "covers" }, columns: ["GEOID"], limit: 2 });
   if (st === "FL") checks.push({ id: "roll", layer: "fl_parcels", predicate: { op: "covers" }, columns: ["parcel_id", "county_fips", "dor_uc", "act_yr_blt", "tot_lvg_ar", "no_res_unt", "jv", "asmnt_yr"], limit: 2 });
-  const [first, prop] = await Promise.all([lookup(env, subject, checks), property(env, res.label)]);
+  const [first, prop, list] = await Promise.all([lookup(env, subject, checks), property(env, res.label), listing(env, res.label)]);
   const rolls = first.get("roll") ?? [];
   // one parcel only: a point on two roll rows (a stacked condominium) gives no roll facts
   const roll = rolls.length === 1 ? rolls[0] : null;
@@ -151,6 +167,7 @@ export async function answer(env: Env, address: string): Promise<LookupAnswer> {
     flatCharges,
     city: res.components?.city ?? null,
     property: prop,
+    listing: list,
     txSchoolDistrict: (() => {
       const isd = first.get("isd") ?? [];
       return isd.length === 1 && typeof isd[0].GEOID === "string" ? isd[0].GEOID : null;
