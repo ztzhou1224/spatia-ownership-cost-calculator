@@ -6,8 +6,9 @@ Guidance for Claude Code in this repository.
   change any input or set any cost line. The study and its sources: `docs/study.md`.
 - Vite + React + TypeScript on ONE Cloudflare Worker (`spatia-ownership-cost`, cost.runspatia.com; owner 2026-11-18: "if you
   need a server use the cloudflare worker"; the subdomain was left to us). Logic in `src/lib/` (pure, tested with vitest), UI in
-  `src/App.tsx`, the Worker in `workers/app.ts` (static assets + `/api/lookup`). The address is never stored or logged; the
-  lookup answers `no-store`. Secrets `SPATIA_CLIENT_ID` / `SPATIA_CLIENT_SECRET` (a spatia-auth service client, audience
+  `src/App.tsx`, the Worker in `workers/app.ts` (static assets + `/api/lookup`). The site is free, with no login. It records nothing a
+  visitor enters, and it shows no privacy notice (owner, 2026-11-19: "Put it back to browser and don't record, get rid of the
+  reminder as well"). The calculation runs in the browser. The address is never stored or logged; the lookup answers `no-store`. Secrets `SPATIA_CLIENT_ID` / `SPATIA_CLIENT_SECRET` (a spatia-auth service client, audience
   `geocode`, bound to Home's service user) and `RENTCAST_API_KEY` are Worker secrets only, never in this PUBLIC repo.
 - RentCast (owner 2026-11-18): the property record only, through the allowlist in `src/lib/rentcast.ts` (never an owner field,
   the zoning, the APN, the subdivision or the legal description); its facts are labelled RentCast's, never a value of the home.

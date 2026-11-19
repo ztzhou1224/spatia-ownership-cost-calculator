@@ -70,7 +70,6 @@ export function App() {
           </button>
         </form>
         {error && <p className="error">{error}</p>}
-        <p className="privacy">An address is sent to Spatia's geocoder and data service and to RentCast to read the flood zone, the county record and the property record. It is not stored.</p>
       </header>
       {place && <Calculator place={place} changed={changed} setChanged={setChanged} setLines={setLines} setSetLines={setSetLines} />}
       <footer className="foot">
