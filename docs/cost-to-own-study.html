@@ -1,0 +1,485 @@
+<title>Cost to Own Study</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: one reading column (about 68ch) for prose; wide blocks (tables, wireframes) break out to 1120px. */
+:root {
+  --bg: #f4f6f3;
+  --paper: #ffffff;
+  --fg: #172019;
+  --muted: #56645b;
+  --line: #d9e0da;
+  --accent: #1d6b57;
+  --accent-soft: #e2efe9;
+  --gA: #1d6b57; --gA-bg: #dcefe6;
+  --gB: #23578f; --gB-bg: #dde8f5;
+  --gC: #8a5a0b; --gC-bg: #f6ead2;
+  --gD: #a3333f; --gD-bg: #f7dfe1;
+  --mock: #eef1ed;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111613; --paper: #171e1a; --fg: #e3ebe5; --muted: #9aa99f; --line: #2a352e;
+    --accent: #5cc4a6; --accent-soft: #19302a;
+    --gA: #6fd3b3; --gA-bg: #173229; --gB: #8db8ea; --gB-bg: #182839;
+    --gC: #e9b45a; --gC-bg: #33280f; --gD: #f08b95; --gD-bg: #3a1c20; --mock: #1d2621;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111613; --paper: #171e1a; --fg: #e3ebe5; --muted: #9aa99f; --line: #2a352e;
+  --accent: #5cc4a6; --accent-soft: #19302a;
+  --gA: #6fd3b3; --gA-bg: #173229; --gB: #8db8ea; --gB-bg: #182839;
+  --gC: #e9b45a; --gC-bg: #33280f; --gD: #f08b95; --gD-bg: #3a1c20; --mock: #1d2621;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 16px/1.6 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+main { max-width: 1120px; margin: 0 auto; display: grid; gap: 56px; }
+.prose { max-width: 70ch; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 46px); letter-spacing: -0.01em; }
+h2 { font-size: clamp(22px, 3vw, 28px); }
+h3 { font-size: 18px; }
+p { margin: 0; }
+section { display: grid; gap: 16px; min-width: 0; }
+.eyebrow { font: 600 12px/1 var(--font-data); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.lead { font-size: 18px; color: var(--muted); max-width: 66ch; }
+.meta { font: 13px var(--font-data); color: var(--muted); }
+a { color: var(--accent); }
+code { font: 0.9em var(--font-data); }
+ul, ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+
+/* the answer */
+.answer { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 24px; display: grid; gap: 20px; }
+.answer-head { font: 600 20px/1.35 var(--font-display); max-width: 60ch; }
+.grades { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.grade { border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.grade .count { font: 700 34px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.grade .name { font-weight: 700; }
+.grade .what { font-size: 14px; }
+.grade.A { background: var(--gA-bg); color: var(--gA); } .grade.B { background: var(--gB-bg); color: var(--gB); }
+.grade.C { background: var(--gC-bg); color: var(--gC); } .grade.D { background: var(--gD-bg); color: var(--gD); }
+.grade .what, .grade .name { color: var(--fg); }
+.bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; }
+.bar span { display: block; }
+
+/* tables */
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { font: 600 12px/1.3 var(--font-data); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); background: var(--mock); position: sticky; top: 0; }
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+td.n { font-variant-numeric: tabular-nums; font-family: var(--font-data); font-size: 13px; white-space: nowrap; }
+td.up { color: var(--muted); min-width: 260px; }
+th[scope="row"] { font-weight: 600; white-space: nowrap; }
+.st { font: 12px var(--font-data); color: var(--muted); margin-left: 4px; }
+.sub { display: block; font-size: 12px; color: var(--muted); }
+.g { display: inline-block; min-width: 26px; text-align: center; font: 700 13px/22px var(--font-data); border-radius: 6px; }
+.gA { background: var(--gA-bg); color: var(--gA); } .gB { background: var(--gB-bg); color: var(--gB); }
+.gC { background: var(--gC-bg); color: var(--gC); } .gD { background: var(--gD-bg); color: var(--gD); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filters button { font: 500 13px var(--font-body); border: 1px solid var(--line); background: var(--paper); color: var(--fg); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.filters button[aria-pressed="true"] { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+.filters button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* two-column notes */
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.note { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.note h3 { font-size: 16px; }
+.note p, .note li { font-size: 15px; }
+.tag { justify-self: start; font: 600 11px/1 var(--font-data); letter-spacing: 0.06em; text-transform: uppercase; padding: 5px 8px; border-radius: 5px; background: var(--accent-soft); color: var(--accent); }
+
+/* wireframes */
+.wires { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .wires { grid-template-columns: minmax(0, 1fr); } }
+.frame { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: grid; }
+.frame .chrome { display: flex; gap: 6px; align-items: center; padding: 8px 12px; background: var(--mock); border-bottom: 1px solid var(--line); font: 12px var(--font-data); color: var(--muted); }
+.frame .chrome i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); display: inline-block; }
+.screen { padding: 16px; display: grid; gap: 12px; font-size: 13px; }
+.w-search { display: flex; gap: 8px; }
+.w-input { flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; color: var(--muted); background: var(--bg); }
+.w-btn { background: var(--accent); color: var(--paper); border-radius: 8px; padding: 8px 12px; font-weight: 600; white-space: nowrap; }
+.w-facts { display: flex; flex-wrap: wrap; gap: 6px; }
+.w-chip { border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; font-size: 12px; color: var(--muted); }
+.w-body { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 14px; }
+.w-total { background: var(--accent-soft); border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; }
+.w-total b { font: 700 30px/1 var(--font-display); color: var(--fg); }
+.w-stack { display: flex; height: 12px; border-radius: 6px; overflow: hidden; }
+.w-stack span { display: block; }
+.w-line { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.w-line .src { grid-column: 1 / -1; font-size: 11px; color: var(--muted); }
+.w-range { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--line); position: relative; }
+.w-range i { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: var(--accent); opacity: 0.55; }
+.w-panel { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; align-content: start; }
+.w-row { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); }
+.w-row b { color: var(--fg); font-weight: 600; }
+.w-row.changed b { color: var(--gC); }
+.w-cta { border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px; color: var(--accent); font-weight: 600; }
+.phone { max-width: 300px; justify-self: center; width: 100%; }
+@media (max-width: 860px) { .w-body { grid-template-columns: minmax(0, 1fr); } }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; background: var(--c); }
+
+/* flow */
+.flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; counter-reset: step; }
+.flow li { list-style: none; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 14px; display: grid; gap: 4px; }
+.flow li::before { counter-increment: step; content: "Step " counter(step); font: 600 11px var(--font-data); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.flow { padding: 0; }
+
+/* decisions */
+.decision { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; display: grid; gap: 10px; }
+.decision h3 { font-size: 17px; }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.opt { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; display: grid; gap: 4px; align-content: start; }
+.opt.rec { border-color: var(--accent); background: var(--accent-soft); }
+.opt b { font-family: var(--font-display); }
+.rec-label { font: 600 11px var(--font-data); text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); }
+.phases { display: grid; gap: 10px; }
+.phase { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.phase .when { font: 600 13px var(--font-data); color: var(--accent); }
+@media (max-width: 560px) { .phase { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+footer { max-width: 1120px; margin: 0 auto; font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { .filters button { transition: background 120ms; } }
+</style>
+
+<main>
+  <header class="prose" style="display:grid;gap:14px">
+    <p class="eyebrow">Spatia · research and product design · 19 November 2026</p>
+    <h1>Cost to own a home: where we can estimate it, and the product we should build</h1>
+    <p class="lead">The pilot at cost.runspatia.com estimates every cost line in all 50 states and DC. The property tax decides how good the total is, and its quality differs by state. This page measures it per state and per line, then gives the full design for a stand-alone product.</p>
+    <p class="meta">Measured from the calculator's data build (data service build 20261118T210647Z, Census ZCTA files, Freddie Mac PMMS 2026-11-12) and spatia-data's jurisdiction record.</p>
+  </header>
+
+  <section aria-labelledby="answer">
+    <h2 id="answer">The answer</h2>
+    <div class="answer">
+      <p class="answer-head">We can give a full estimate in 51 of 51 places today. Three of them are strong on tax; in 48 the tax is an area average. With the steps below, 48 can move up one grade.</p>
+      <div class="bar" role="img" aria-label="Grade share of the 51 places: A 1, B 2, C 39, D 9">
+        <span style="flex:1;background:var(--gA)"></span><span style="flex:2;background:var(--gB)"></span><span style="flex:39;background:var(--gC)"></span><span style="flex:9;background:var(--gD)"></span>
+      </div>
+      <div class="grades">
+        <div class="grade A"><span class="count">1</span><span class="name">A · Tested</span><span class="what">Florida. The tax has a back-tested range in 27 of 67 counties, plus the parcel's flat charges and tax district from an address.</span></div>
+        <div class="grade B"><span class="count">2</span><span class="name">B · Rule and published rates</span><span class="what">California (1 % of the price by law, plus voter rates) and Texas (each taxing unit's published rate). No tested range.</span></div>
+        <div class="grade C"><span class="count">39</span><span class="name">C · Area rate</span><span class="what">A sale does not change the taxed value. The area's average rate is a fair start; the current owner's bill is a better one.</span></div>
+        <div class="grade D"><span class="count">9</span><span class="name">D · Area rate, likely low</span><span class="what">A sale ends a cap, so a buyer pays more than today's owners: AR, DC, GA, MD, MI, NM, OK, SC, WY.</span></div>
+      </div>
+      <p>The other lines (loan, insurance, energy, upkeep) are national and do not change the grade. Their gaps are listed in the next section.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="lines">
+    <h2 id="lines">Each cost line, measured</h2>
+    <p class="prose">Coverage below is what the data build holds today: 33,642 ZIP codes in 3,125 counties.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Line</th><th>Default comes from</th><th>Where it works</th><th>Range</th><th>Gap</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Loan and interest</th><td>Asking price (RentCast listing), else the county's typical value; Freddie Mac's weekly 30-year rate</td><td>Everywhere</td><td>Exact for the inputs</td><td>No closing costs yet</td></tr>
+          <tr><th scope="row">Mortgage insurance</th><td>A typical rate by down payment; ends at 78 % of the price</td><td>Everywhere</td><td>None</td><td>An assumption; credit score is not asked</td></tr>
+          <tr><th scope="row">Property tax</th><td>See the grades above</td><td>51 of 51</td><td>FL only (27 counties)</td><td>48 places on an area average</td></tr>
+          <tr><th scope="row">Flat charges on the bill</th><td>The parcel's non-ad-valorem assessments on the county roll</td><td>Florida, with an address</td><td>None</td><td>$0 with a note elsewhere</td></tr>
+          <tr><th scope="row">Homeowners insurance</th><td>U.S. Treasury's ZIP average premium, 2022</td><td class="n">76.1 % of ZIPs; county figure for 96.9 % of counties</td><td>None</td><td>2022 figures; premiums have risen since</td></tr>
+          <tr><th scope="row">Flood insurance</th><td>FEMA's premiums of similar homes, by county and zone</td><td class="n">55.7 % of counties have a high-risk-zone figure</td><td>45 states (not AK, DC, MT, ND, SD, WY)</td><td>Rural counties with few policies</td></tr>
+          <tr><th scope="row">Electricity and gas</th><td>Home's formula on EIA's 2020 survey; NOAA normals; EIA state prices</td><td>51 of 51</td><td>Yes (10th–90th percentile)</td><td>Gas price is 2024 in CT, MD, ME, NC, RI, SC</td></tr>
+          <tr><th scope="row">HOA fee</th><td>RentCast's property record or listing</td><td>Where RentCast has it</td><td>None</td><td>Many condos lack a fee</td></tr>
+          <tr><th scope="row">Water, sewer, trash</th><td>A fixed $85 a month</td><td>Everywhere</td><td>None</td><td>No national source of rates</td></tr>
+          <tr><th scope="row">Maintenance</th><td>1 % of the price a year</td><td>Everywhere</td><td>None</td><td>A rule of thumb</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="states">
+    <h2 id="states">State by state</h2>
+    <p class="prose">"Sale rule" is from spatia-data's jurisdiction record (<code>&lt;st&gt;.assessment_basis</code>). "Sale prices public" decides whether a back-test is possible from public records. "State roll" means spatia-data already publishes the state's parcel roll.</p>
+    <div class="filters" role="group" aria-label="Show grade">
+      <button type="button" data-f="all" aria-pressed="true">All 51</button>
+      <button type="button" data-f="A" aria-pressed="false">A</button>
+      <button type="button" data-f="B" aria-pressed="false">B</button>
+      <button type="button" data-f="C" aria-pressed="false">C</button>
+      <button type="button" data-f="D" aria-pressed="false">D</button>
+    </div>
+    <div class="tablewrap" style="max-height:640px">
+      <table id="statetable">
+        <thead><tr><th>State</th><th>Grade</th><th>Sale rule</th><th>Sale prices public</th><th>Treasury ZIPs</th><th>Flood counties</th><th>Flood range</th><th>State roll</th><th>Next step to raise the grade</th></tr></thead>
+        <tbody>
+<tr data-grade="C"><th scope="row">Alabama <span class="st">AL</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n">yes</td><td class="n">83%</td><td class="n">38/67</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Alaska <span class="st">AK</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n"><b>no</b></td><td class="n">13%</td><td class="n">8/30</td><td class="n">no</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Arizona <span class="st">AZ</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">capped value</span></td><td class="n">yes</td><td class="n">79%</td><td class="n">13/15</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="D"><th scope="row">Arkansas <span class="st">AR</span></th><td><span class="g gD" title="Area rate, likely low for a buyer">D</span></td><td>Sale ends the cap; value set again from market (a share of it)<span class="sub">capped value</span></td><td class="n">yes</td><td class="n">61%</td><td class="n">37/75</td><td class="n">yes</td><td class="n">yes</td><td class="up">State sales-ratio study as the value ratio, plus local rates; back-test on the state roll</td></tr>
+<tr data-grade="B"><th scope="row">California <span class="st">CA</span></th><td><span class="g gB" title="Rule and published rates">B</span></td><td>Sale resets value to the price<span class="sub">capped value</span></td><td class="n">yes</td><td class="n">86%</td><td class="n">50/58</td><td class="n">yes</td><td class="n">yes</td><td class="up">Read more county rate books (2 of 58 today)</td></tr>
+<tr data-grade="C"><th scope="row">Colorado <span class="st">CO</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n">yes</td><td class="n">79%</td><td class="n">29/64</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="C"><th scope="row">Connecticut <span class="st">CT</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n">yes</td><td class="n">91%</td><td class="n">7/8</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="C"><th scope="row">Delaware <span class="st">DE</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n">yes</td><td class="n">84%</td><td class="n">3/3</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="D"><th scope="row">District of Columbia <span class="st">DC</span></th><td><span class="g gD" title="Area rate, likely low for a buyer">D</span></td><td>Sale ends the cap; value set again from market<span class="sub">capped value</span></td><td class="n">yes</td><td class="n">35%</td><td class="n">1/1</td><td class="n">no</td><td class="n">yes</td><td class="up">Port Home’s tested DC estimate (1,486 sales)</td></tr>
+<tr data-grade="A"><th scope="row">Florida <span class="st">FL</span></th><td><span class="g gA" title="Tested in 27 of 67 counties">A</span></td><td>Sale ends the cap; value set again from market<span class="sub">capped value</span></td><td class="n">yes</td><td class="n">55%</td><td class="n">66/67</td><td class="n">yes</td><td class="n">yes</td><td class="up">Back-test the other 40 counties; flat charges for a ZIP-only search</td></tr>
+<tr data-grade="D"><th scope="row">Georgia <span class="st">GA</span></th><td><span class="g gD" title="Area rate, likely low for a buyer">D</span></td><td>Sale ends the cap; value set again from market (a share of it)<span class="sub">capped value</span></td><td class="n">yes</td><td class="n">84%</td><td class="n">65/159</td><td class="n">yes</td><td class="n"></td><td class="up">State sales-ratio study as the value ratio, plus local rates</td></tr>
+<tr data-grade="C"><th scope="row">Hawaii <span class="st">HI</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n">yes</td><td class="n">26%</td><td class="n">4/5</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="C"><th scope="row">Idaho <span class="st">ID</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n"><b>no</b></td><td class="n">75%</td><td class="n">19/44</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Illinois <span class="st">IL</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n">yes</td><td class="n">85%</td><td class="n">51/102</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Indiana <span class="st">IN</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n">yes</td><td class="n">83%</td><td class="n">66/92</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Iowa <span class="st">IA</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n">yes</td><td class="n">60%</td><td class="n">30/99</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Kansas <span class="st">KS</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n"><b>no</b></td><td class="n">59%</td><td class="n">33/105</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Kentucky <span class="st">KY</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n">yes</td><td class="n">60%</td><td class="n">53/120</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Louisiana <span class="st">LA</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n"><b>no</b></td><td class="n">63%</td><td class="n">60/64</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Maine <span class="st">ME</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">each town’s own level</span></td><td class="n">yes</td><td class="n">93%</td><td class="n">15/16</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="D"><th scope="row">Maryland <span class="st">MD</span></th><td><span class="g gD" title="Area rate, likely low for a buyer">D</span></td><td>Sale ends the cap; value set again from market<span class="sub">capped value</span></td><td class="n">yes</td><td class="n">89%</td><td class="n">24/24</td><td class="n">yes</td><td class="n">yes</td><td class="up">State sales-ratio study as the value ratio, plus local rates; back-test on the state roll</td></tr>
+<tr data-grade="C"><th scope="row">Massachusetts <span class="st">MA</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n">yes</td><td class="n">93%</td><td class="n">14/14</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="D"><th scope="row">Michigan <span class="st">MI</span></th><td><span class="g gD" title="Area rate, likely low for a buyer">D</span></td><td>Sale ends the cap; value set again from market (a share of it)<span class="sub">capped value</span></td><td class="n">yes</td><td class="n">92%</td><td class="n">50/83</td><td class="n">yes</td><td class="n"></td><td class="up">State sales-ratio study as the value ratio, plus local rates</td></tr>
+<tr data-grade="C"><th scope="row">Minnesota <span class="st">MN</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n">yes</td><td class="n">78%</td><td class="n">31/87</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="C"><th scope="row">Mississippi <span class="st">MS</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n"><b>no</b></td><td class="n">78%</td><td class="n">42/82</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Missouri <span class="st">MO</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n"><b>no</b></td><td class="n">68%</td><td class="n">39/115</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Montana <span class="st">MT</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n"><b>no</b></td><td class="n">45%</td><td class="n">12/56</td><td class="n">no</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Nebraska <span class="st">NE</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n">yes</td><td class="n">49%</td><td class="n">26/93</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="C"><th scope="row">Nevada <span class="st">NV</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">capped value</span></td><td class="n">yes</td><td class="n">77%</td><td class="n">13/17</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">New Hampshire <span class="st">NH</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">each town’s own level</span></td><td class="n">yes</td><td class="n">97%</td><td class="n">10/10</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">New Jersey <span class="st">NJ</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">each town’s own level</span></td><td class="n">yes</td><td class="n">94%</td><td class="n">21/21</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="D"><th scope="row">New Mexico <span class="st">NM</span></th><td><span class="g gD" title="Area rate, likely low for a buyer">D</span></td><td>Sale ends the cap; value set again from market (a share of it)<span class="sub">capped value</span></td><td class="n"><b>no</b></td><td class="n">54%</td><td class="n">21/33</td><td class="n">yes</td><td class="n"></td><td class="up">State sales-ratio study as the value ratio, plus local rates</td></tr>
+<tr data-grade="C"><th scope="row">New York <span class="st">NY</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">each town’s own level</span></td><td class="n">yes</td><td class="n">84%</td><td class="n">59/62</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="C"><th scope="row">North Carolina <span class="st">NC</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n">yes</td><td class="n">85%</td><td class="n">69/100</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="C"><th scope="row">North Dakota <span class="st">ND</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n">yes</td><td class="n">23%</td><td class="n">14/53</td><td class="n">no</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Ohio <span class="st">OH</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n">yes</td><td class="n">84%</td><td class="n">76/88</td><td class="n">yes</td><td class="n">yes</td><td class="up">Port Home’s tested Franklin and Cuyahoga estimates</td></tr>
+<tr data-grade="D"><th scope="row">Oklahoma <span class="st">OK</span></th><td><span class="g gD" title="Area rate, likely low for a buyer">D</span></td><td>Sale ends the cap; value set again from market (a share of it)<span class="sub">capped value</span></td><td class="n">yes</td><td class="n">64%</td><td class="n">28/77</td><td class="n">yes</td><td class="n"></td><td class="up">State sales-ratio study as the value ratio, plus local rates</td></tr>
+<tr data-grade="C"><th scope="row">Oregon <span class="st">OR</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">capped value</span></td><td class="n">yes</td><td class="n">80%</td><td class="n">29/36</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Pennsylvania <span class="st">PA</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">an old base year</span></td><td class="n">yes</td><td class="n">83%</td><td class="n">64/67</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Rhode Island <span class="st">RI</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n">yes</td><td class="n">91%</td><td class="n">5/5</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="D"><th scope="row">South Carolina <span class="st">SC</span></th><td><span class="g gD" title="Area rate, likely low for a buyer">D</span></td><td>Sale ends the cap; value set again from market (a share of it)<span class="sub">capped value</span></td><td class="n">yes</td><td class="n">87%</td><td class="n">28/46</td><td class="n">yes</td><td class="n"></td><td class="up">State sales-ratio study as the value ratio, plus local rates</td></tr>
+<tr data-grade="C"><th scope="row">South Dakota <span class="st">SD</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n">yes</td><td class="n">48%</td><td class="n">18/66</td><td class="n">no</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Tennessee <span class="st">TN</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n">yes</td><td class="n">87%</td><td class="n">53/95</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="B"><th scope="row">Texas <span class="st">TX</span></th><td><span class="g gB" title="Rule and published rates">B</span></td><td>Sale ends the cap; value set again from market<span class="sub">capped value</span></td><td class="n"><b>no</b></td><td class="n">76%</td><td class="n">135/254</td><td class="n">yes</td><td class="n">yes</td><td class="up">Comptroller’s property value study as the value ratio; special-district boundaries</td></tr>
+<tr data-grade="C"><th scope="row">Utah <span class="st">UT</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n"><b>no</b></td><td class="n">83%</td><td class="n">17/29</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Vermont <span class="st">VT</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">each town’s own level</span></td><td class="n">yes</td><td class="n">93%</td><td class="n">13/14</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="C"><th scope="row">Virginia <span class="st">VA</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n">yes</td><td class="n">83%</td><td class="n">61/115</td><td class="n">yes</td><td class="n"></td><td class="up">Current owner’s bill (RentCast) as the default</td></tr>
+<tr data-grade="C"><th scope="row">Washington <span class="st">WA</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">full value</span></td><td class="n">yes</td><td class="n">84%</td><td class="n">28/39</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="C"><th scope="row">West Virginia <span class="st">WV</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">a fixed share of value</span></td><td class="n">yes</td><td class="n">62%</td><td class="n">38/55</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="C"><th scope="row">Wisconsin <span class="st">WI</span></th><td><span class="g gC" title="Area rate">C</span></td><td>Sale does not change the taxed value<span class="sub">each town’s own level</span></td><td class="n">yes</td><td class="n">92%</td><td class="n">47/72</td><td class="n">yes</td><td class="n">yes</td><td class="up">Current owner’s bill (RentCast) as the default; back-test on the state roll</td></tr>
+<tr data-grade="D"><th scope="row">Wyoming <span class="st">WY</span></th><td><span class="g gD" title="Area rate, likely low for a buyer">D</span></td><td>Sale ends the cap; value set again from market (a share of it)<span class="sub">capped value</span></td><td class="n"><b>no</b></td><td class="n">47%</td><td class="n">9/23</td><td class="n">no</td><td class="n">yes</td><td class="up">State sales-ratio study as the value ratio, plus local rates</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="raise">
+    <h2 id="raise">How to raise the grade</h2>
+    <div class="cols">
+      <div class="note"><span class="tag">39 states · C</span><h3>Use the current owner's bill</h3><p>Where a sale does not change the taxed value, the seller's latest bill is the best start. RentCast's record gives it for most homes. The bill includes the seller's exemptions, so it can be a little low; the page says so.</p><p class="meta">Cost: no new data. Risk: low. We have not measured how often RentCast has a bill.</p></div>
+      <div class="note"><span class="tag">9 places · D</span><h3>Use the state's sales-ratio study</h3><p>Where a sale ends a cap, the buyer's value is the assessor's market value. Most states publish a yearly ratio of assessed value to sale price per county. That ratio times the price, times local rates, gives the buyer's tax.</p><p class="meta">Cost: one spatia-data layer per state, plus rate tables. Risk: medium.</p></div>
+      <div class="note"><span class="tag">DC, OH</span><h3>Port Home's tested estimates</h3><p>Spatia Home already has back-tested estimates for the District (1,486 sales) and two Ohio counties (Franklin, Cuyahoga). The calculator can reuse them.</p><p class="meta">Cost: small. Risk: low.</p></div>
+      <div class="note"><span class="tag">CA · TX · FL</span><h3>Finish the three strong states</h3><ul><li>California: read more county rate books (2 of 58 today).</li><li>Texas: special-district boundaries (MUDs) so they are found, not ticked.</li><li>Florida: back-test the other 40 counties; typical flat charges for a ZIP-only search.</li></ul></div>
+    </div>
+    <p class="prose">A back-test needs public sale prices. Eleven states do not publish them: AK, ID, KS, LA, MO, MS, MT, NM, TX, UT, WY. There, a tax figure can follow the law and the rates, but it cannot show a tested range.</p>
+  </section>
+
+  <section aria-labelledby="product">
+    <p class="eyebrow">Part two</p>
+    <h2 id="product">The product: a stand-alone design</h2>
+    <div class="cols">
+      <div class="note"><span class="tag">Job</span><h3>One question</h3><p>"What will this home really cost me each month, all in?" Answered for one address in under five seconds, with every line sourced and every input changeable.</p></div>
+      <div class="note"><span class="tag">Who</span><h3>Readers</h3><ul><li>Buyers before an offer (main audience).</li><li>Buyer's agents and loan officers who send a link to a client.</li><li>People moving to another state who compare places.</li></ul></div>
+      <div class="note"><span class="tag">Why us</span><h3>What free sites do not show</h3><ul><li>The tax a new owner pays, not today's average rate.</li><li>The flood zone, flat charges and home facts from the records at the address.</li><li>A tested range where one exists, and the source of every figure.</li></ul></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="flow">
+    <h3 id="flow">The main flow</h3>
+    <ol class="flow">
+      <li>Type an address (or a ZIP for the area only).</li>
+      <li>See the monthly total, the range and the share of each line.</li>
+      <li>Open a line to see its source, its range and what changes it.</li>
+      <li>Change an input or type your own figure; the total updates at once.</li>
+      <li>Save or share the result, or compare it with a second home.</li>
+      <li>Get the full Home report for this address (the paid next step).</li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="wire">
+    <h3 id="wire">The result screen</h3>
+    <p class="prose">One screen, answer first. The total and the breakdown sit at the top; each line opens in place; the inputs sit in a side panel on a computer and in a sheet on a phone.</p>
+    <div class="wires">
+      <div class="frame" aria-label="Wireframe: result screen on a computer">
+        <div class="chrome"><i></i><i></i><i></i><span>cost.runspatia.com/home/1023-w-gore-st-orlando-fl</span></div>
+        <div class="screen">
+          <div class="w-search"><span class="w-input">1023 W Gore St, Orlando, FL 32805</span><span class="w-btn">Estimate</span></div>
+          <div class="w-facts"><span class="w-chip">House · 2,618 sq ft · built 1954</span><span class="w-chip">FEMA zone X</span><span class="w-chip">Tax district ORL28</span><span class="w-chip">Listed $255,000</span></div>
+          <div class="w-body">
+            <div style="display:grid;gap:10px">
+              <div class="w-total"><span>A month to own</span><b>$2,360</b><span class="meta">$2,270 to $2,500 with the tested ranges · $28,300 a year</span>
+                <div class="w-stack" aria-hidden="true"><span style="flex:58;background:var(--accent)"></span><span style="flex:12;background:var(--gB)"></span><span style="flex:8;background:var(--gC)"></span><span style="flex:9;background:var(--gD)"></span><span style="flex:13;background:var(--muted)"></span></div>
+                <div class="legend"><span style="--c:var(--accent)">Loan</span><span style="--c:var(--gB)">Tax</span><span style="--c:var(--gC)">Insurance</span><span style="--c:var(--gD)">Energy</span><span style="--c:var(--muted)">Other</span></div>
+              </div>
+              <div>
+                <div class="w-line"><span>Principal and interest</span><b>$1,370</b><span class="src">7.11 % · 30 years · Freddie Mac</span></div>
+                <div class="w-line"><span>Property tax</span><b>$265</b><span class="src">Florida rolls · district ORL28 · no tested range for this home</span></div>
+                <div class="w-line"><span>Flat charges</span><b>$21</b><span class="src">County tax roll, 1 charge</span></div>
+                <div class="w-line"><span>Homeowners insurance</span><b>$192</b><span class="src">U.S. Treasury, ZIP average, 2022</span></div>
+                <div class="w-line"><span>Electricity and gas</span><b>$210</b><div class="w-range"><i style="left:18%;width:52%"></i></div><span class="src">Spatia formula · EIA · NOAA · $123 to $353</span></div>
+              </div>
+            </div>
+            <div style="display:grid;gap:10px">
+              <div class="w-panel"><b>Your inputs</b>
+                <div class="w-row"><span>Price</span><b>$255,000</b></div>
+                <div class="w-row"><span>Down payment</span><b>20 %</b></div>
+                <div class="w-row"><span>Live in the home</span><b>Yes</b></div>
+                <div class="w-row changed"><span>Heating</span><b>Gas ✎</b></div>
+                <span class="meta">Each input shows its source; ✎ marks your changes</span>
+              </div>
+              <div class="w-panel"><b>What changes it</b>
+                <div class="w-row"><span>Lowers</span><b>Homestead filed</b></div>
+                <div class="w-row"><span>Raises</span><b>Not your main home</b></div>
+                <div class="w-row"><span>Can change</span><b>Rates each autumn</b></div>
+              </div>
+              <div class="w-cta">Full report for this home · $7.99 →</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="frame phone" aria-label="Wireframe: result screen on a phone">
+        <div class="chrome"><span>Phone</span></div>
+        <div class="screen">
+          <div class="w-input">1023 W Gore St…</div>
+          <div class="w-total"><span>A month to own</span><b>$2,360</b><span class="meta">$2,270 to $2,500</span>
+            <div class="w-stack" aria-hidden="true"><span style="flex:58;background:var(--accent)"></span><span style="flex:12;background:var(--gB)"></span><span style="flex:8;background:var(--gC)"></span><span style="flex:9;background:var(--gD)"></span><span style="flex:13;background:var(--muted)"></span></div>
+          </div>
+          <div class="w-line"><span>Principal and interest</span><b>$1,370</b></div>
+          <div class="w-line"><span>Property tax and charges</span><b>$286</b></div>
+          <div class="w-line"><span>Insurance</span><b>$192</b></div>
+          <div class="w-line"><span>Energy</span><b>$210</b></div>
+          <div class="w-btn" style="text-align:center">Change inputs</div>
+          <div class="w-cta" style="text-align:center">Full report · $7.99</div>
+        </div>
+      </div>
+    </div>
+    <p class="meta">Wireframe only. The figures are the pilot's own result for this listed home on 19 November 2026 (asking price $255,000, 20 % down). The changed heating input shows how a change is marked; the totals do not include it.</p>
+  </section>
+
+  <section aria-labelledby="pages">
+    <h3 id="pages">Pages</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Page</th><th>Path</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Home</th><td><code>/</code></td><td>The search, one worked example, how it works in three lines, the data credits.</td></tr>
+          <tr><th scope="row">Result</th><td><code>/home/&lt;address-slug&gt;</code></td><td>The screen above. The slug holds no unit or name; the page is not indexed.</td></tr>
+          <tr><th scope="row">Area estimate</th><td><code>/zip/&lt;zip&gt;</code></td><td>The same screen from a ZIP alone, with area defaults. Indexed.</td></tr>
+          <tr><th scope="row">Compare</th><td><code>/compare</code></td><td>Two or three homes or scenarios side by side, line by line.</td></tr>
+          <tr><th scope="row">State and county guides</th><td><code>/cost-to-own/&lt;state&gt;/&lt;county&gt;</code></td><td>Built from the data tables: typical tax rate and how a sale changes it, insurance, flood, energy prices. For search traffic; each links to the calculator.</td></tr>
+          <tr><th scope="row">Method</th><td><code>/method</code></td><td>Each line's method, its grade by state, the back-test results.</td></tr>
+          <tr><th scope="row">Sources</th><td><code>/sources</code></td><td>Every publisher with its credit and date.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="rules">
+    <h3 id="rules">Product rules</h3>
+    <div class="cols">
+      <div class="note"><h3>Honest figures</h3><ul><li>A range only where a back-test measured it.</li><li>Each figure names its source and year.</li><li>No estimate is called a quote.</li><li>The tax says which grade it is, in words.</li></ul></div>
+      <div class="note"><h3>Privacy</h3><ul><li>The address is not stored or logged.</li><li>No owner name, agent or MLS field is read.</li><li>Analytics see the page, never the address.</li></ul></div>
+      <div class="note"><h3>Cost control</h3><ul><li>Each address costs two RentCast calls (about $0.06 each, from Home's measurement): about $0.12 a lookup.</li><li>Today: 10 lookups a minute per visitor; no daily cap.</li><li>Needed: a daily cap and a short cache by address hash.</li></ul></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="arch">
+    <h3 id="arch">Architecture</h3>
+    <pre class="mermaid">
+flowchart LR
+  U[Reader] --> W[Cloudflare Worker<br/>cost.runspatia.com]
+  W --> S[Static tables<br/>ZIP, county, state]
+  W --> G[Spatia geocoder]
+  W --> Q[Spatia data service<br/>flood zone, roll, tax district]
+  W --> R[RentCast<br/>property record, listing]
+  B[spatia-data] --> Q
+  B -. data build .-> S
+    </pre>
+    <p class="prose">One Worker serves the pages and one lookup API. The data tables are rebuilt from the data service by a script. Nothing about the reader is stored. To add saved results and a daily cap, the Worker needs one KV namespace.</p>
+  </section>
+
+  <section aria-labelledby="road">
+    <h3 id="road">Phases</h3>
+    <div class="phases">
+      <div class="phase"><span class="when">Phase 1 · now</span><div><b>Harden the pilot.</b> Daily cap on RentCast calls, a cache by address hash, analytics, closing costs, the "What changes it" rows.</div></div>
+      <div class="phase"><span class="when">Phase 2</span><div><b>Raise the grade.</b> Current owner's bill in the 39 C states; port DC and Ohio; more California rate books; Florida counties.</div></div>
+      <div class="phase"><span class="when">Phase 3</span><div><b>The new design.</b> The result screen above, compare, share links, the phone layout.</div></div>
+      <div class="phase"><span class="when">Phase 4</span><div><b>Search pages.</b> State and county guides from the data tables; the sitemap.</div></div>
+      <div class="phase"><span class="when">Phase 5</span><div><b>Partners.</b> An embed for agents and lenders; the estimate in Spatia's free MCP.</div></div>
+    </div>
+    <p class="prose">Measure: lookups a day, RentCast cost a lookup, the share of results that are shared, and the share that buy the Home report.</p>
+  </section>
+
+  <section aria-labelledby="decide">
+    <h2 id="decide">Decisions for you</h2>
+
+    <div class="decision"><h3>D1 · Name and address</h3>
+      <p>The pilot runs at cost.runspatia.com. A product name helps the search pages and the links people share.</p>
+      <div class="opts">
+        <div class="opt rec"><span class="rec-label">Recommended</span><b>A. "Spatia Cost to Own" at cost.runspatia.com</b><span>No change of address; the name says the job. Low cost.</span></div>
+        <div class="opt"><b>B. A new domain</b><span>Easier to remember, but a new domain starts with no search history and costs a yearly fee.</span></div>
+      </div>
+      <p class="meta">After A: I change the title, the header and the metadata. After B: you buy the domain; I move the Worker to it.</p>
+    </div>
+
+    <div class="decision"><h3>D2 · Who may look up an address</h3>
+      <p>Each address lookup costs about $0.12. A free, open lookup can cost a lot if a bot finds it.</p>
+      <div class="opts">
+        <div class="opt rec"><span class="rec-label">Recommended</span><b>A. Free, with a daily cap</b><span>Free for everyone up to a cap (for example $20 a day, about 160 lookups). Above it, the ZIP estimate still works. Needs one KV namespace.</span></div>
+        <div class="opt"><b>B. Free after sign-in</b><span>Each person signs in with Spatia's account. Fewer abuse risks, fewer users.</span></div>
+        <div class="opt"><b>C. No cap</b><span>The most use, and no limit on the RentCast bill.</span></div>
+      </div>
+      <p class="meta">After A: I create the KV namespace and the cap, and show the cap's use on the operator side. After B: I add sign-in through spatia-auth.</p>
+    </div>
+
+    <div class="decision"><h3>D3 · The tax default in the 39 C states</h3>
+      <p>Today these states use the area's average rate. The current owner's bill (from RentCast) is closer for most homes, but it carries the seller's exemptions.</p>
+      <div class="opts">
+        <div class="opt rec"><span class="rec-label">Recommended</span><b>A. The current bill when RentCast has it</b><span>The default becomes the latest bill, labelled "the current owner's bill"; the area rate stays as the fallback.</span></div>
+        <div class="opt"><b>B. Keep the area rate</b><span>One method everywhere; the bill stays a note.</span></div>
+      </div>
+      <p class="meta">After A: I measure on 50 addresses how often a bill exists and how it compares with the area rate, then switch.</p>
+    </div>
+
+    <div class="decision"><h3>D4 · The paid next step</h3>
+      <p>The calculator brings people who are about to buy. The Home report is the paid product.</p>
+      <div class="opts">
+        <div class="opt rec"><span class="rec-label">Recommended</span><b>A. One link to the Home report</b><span>"Full report for this home, $7.99" on every address result. No partner leads.</span></div>
+        <div class="opt"><b>B. Add partner offers</b><span>Insurance or loan quotes. More income, but partners and their terms are a new business.</span></div>
+      </div>
+      <p class="meta">After A: I add the link with the address passed to Home's preview.</p>
+    </div>
+
+    <div class="decision"><h3>D5 · State and county guides</h3>
+      <p>Search pages bring visitors at no cost per visit, as Spatia Crime does.</p>
+      <div class="opts">
+        <div class="opt rec"><span class="rec-label">Recommended</span><b>A. Build them in Phase 4</b><span>About 3,200 pages from the existing tables, each with its sources.</span></div>
+        <div class="opt"><b>B. Not now</b><span>Keep the site to the calculator.</span></div>
+      </div>
+    </div>
+  </section>
+</main>
+<footer>
+  <p>Sources: U.S. Census Bureau (ACS 5-year, ZCTA files), U.S. Treasury Federal Insurance Office, FEMA NFIP, EIA (RECS 2020, Form 861, natural gas prices), NOAA climate normals, Florida DOR, California BOE, Texas Comptroller, Freddie Mac PMMS, RentCast, spatia-data's jurisdiction record. Calculator repository: spatia-ownership-cost-calculator, branch claude/vigilant-cannon-ddu7md.</p>
+</footer>
+
+<script>
+(function () {
+  var buttons = document.querySelectorAll(".filters button");
+  var rows = document.querySelectorAll("#statetable tbody tr");
+  buttons.forEach(function (b) {
+    b.addEventListener("click", function () {
+      var f = b.getAttribute("data-f");
+      buttons.forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      rows.forEach(function (r) { r.hidden = f !== "all" && r.getAttribute("data-grade") !== f; });
+    });
+  });
+})();
+</script>
