@@ -26,6 +26,7 @@ export function Calculator(props: { place: Place; example: boolean; changed: Cha
   const { values, defaults, sources } = useMemo(() => resolveAssumptions(place, changed), [place, changed]);
   const result = useMemo(() => calculate(place, values, setLines), [place, values, setLines]);
   const st = place.zipData.st;
+  const [tab, setTab] = useState<"costs" | "inputs">("costs");
   const totalRef = useRef<HTMLDivElement>(null);
   const [totalVisible, setTotalVisible] = useState(true);
   useEffect(() => {
@@ -57,64 +58,44 @@ export function Calculator(props: { place: Place; example: boolean; changed: Cha
   });
   const districts = place.county?.fl_districts ?? [];
   const changedCount = Object.keys(changed).length + Object.keys(setLines).length;
+  const lineProps = (l: Line) => ({
+    line: l,
+    onSet: (v: number) => {
+      if (!props.example) trackLine(l.key, v / 12, l.estimate === null ? null : l.estimate / 12);
+      setSetLines((s) => ({ ...s, [l.key]: v }));
+    },
+    onReset: () => {
+      if (!props.example) trackLine(l.key, null, null);
+      setSetLines((s) => {
+        const n = { ...s };
+        delete n[l.key];
+        return n;
+      });
+    },
+  });
+  const lines = LINE_KEYS.map((k) => result.lines.find((x) => x.key === k)!);
+  const counted = lines.filter((l) => l.yearly > 0 || l.setByUser);
+  const notCounted = lines.filter((l) => !(l.yearly > 0 || l.setByUser));
+  const showInputs = () => {
+    setTab("inputs");
+    document.getElementById("estimate")?.scrollIntoView({ block: "start" });
+  };
 
   return (
-    <div className="calc">
-      <PlaceHeader place={place} example={props.example} />
+    <div className="calc" data-tab={tab}>
+      <div className="tabs" role="tablist" aria-label="Show">
+        <button type="button" role="tab" id="tab-costs" aria-controls="pane-costs" aria-selected={tab === "costs"} onClick={() => setTab("costs")}>
+          Costs
+        </button>
+        <button type="button" role="tab" id="tab-inputs" aria-controls="pane-inputs" aria-selected={tab === "inputs"} onClick={() => setTab("inputs")}>
+          Inputs{changedCount > 0 ? ` (${changedCount} changed)` : ""}
+        </button>
+      </div>
       <div className="calc-grid">
-        <div className="calc-results">
-          <div className="total-card" ref={totalRef}>
-            <div className="total-top">
-              <div>
-                <p className="kicker">A month to own</p>
-                <p className="total-figure">{usd10(result.monthly)}</p>
-              </div>
-              <div className="total-side">
-                <p>
-                  <b>{usd10(result.yearly)}</b> a year
-                </p>
-                <p>
-                  <b>{usd(result.downPayment)}</b> down payment
-                </p>
-              </div>
-            </div>
-            <Breakdown result={result} />
-            <p className="total-note">
-              {Math.round(result.monthlyLow / 10) !== Math.round(result.monthlyHigh / 10)
-                ? `With each tested line at the low or high end of its range: ${usd10(result.monthlyLow)} to ${usd10(result.monthlyHigh)} a month.`
-                : "No tested range for this place."}{" "}
-              Closing costs are not included.
-            </p>
-          </div>
-          <ul className="lines">
-            {LINE_KEYS.map((k) => {
-              const l = result.lines.find((x) => x.key === k)!;
-              return (
-                <LineRow
-                  key={`${place.zip}-${k}`}
-                  line={l}
-                  onSet={(v) => {
-                    if (!props.example) trackLine(k, v / 12, l.estimate === null ? null : l.estimate / 12);
-                    setSetLines((s) => ({ ...s, [k]: v }));
-                  }}
-                  onReset={() => {
-                    if (!props.example) trackLine(k, null, null);
-                    setSetLines((s) => {
-                      const n = { ...s };
-                      delete n[k];
-                      return n;
-                    });
-                  }}
-                />
-              );
-            })}
-          </ul>
-        </div>
-
-        <aside className="calc-inputs" aria-label="Your inputs">
+        <aside className="calc-inputs pane" id="pane-inputs" role="tabpanel" aria-labelledby="tab-inputs" aria-label="Your inputs">
           <div className="inputs-head">
-            <h3>Your inputs</h3>
-            {changedCount > 0 && (
+            <h3>Inputs</h3>
+            {changedCount > 0 ? (
               <button
                 type="button"
                 className="link"
@@ -125,25 +106,31 @@ export function Calculator(props: { place: Place; example: boolean; changed: Cha
               >
                 Use every estimate ({changedCount} changed)
               </button>
+            ) : (
+              <span className="muted">Every figure is an estimate</span>
             )}
           </div>
-          <Group title="The loan" open>
+          <Group title="Loan" open>
             <Num label="Price" prefix="$" step={5000} {...field("price")} />
             <Num label="Down payment" suffix="%" step={1} {...field("downPct")} />
-            <Num label="Interest rate" suffix="%" step={0.125} {...field("ratePct")} />
-            <Num label="Loan term" suffix="years" step={5} {...field("termYears")} />
+            <div className="pair">
+              <Num label="Interest rate" suffix="%" step={0.125} {...field("ratePct")} />
+              <Num label="Loan term" suffix="years" step={5} {...field("termYears")} />
+            </div>
             {values.downPct < 20 && <Num label="Mortgage insurance" suffix="% a year" step={0.05} {...field("pmiPct")} />}
           </Group>
-          <Group title="The home" open>
-            <Select label="Type" options={[["house", "House"], ["townhouse", "Townhouse"], ["condo", "Condo"], ["mobile", "Manufactured home"]]} {...field("homeType")} />
+          <Group title="Home" open>
+            <Pills label="Type" options={[["house", "House"], ["townhouse", "Townhouse"], ["condo", "Condo"], ["mobile", "Manufactured"]]} {...field("homeType")} />
             <Num label="Living area" suffix="sq ft" step={50} {...field("sqft")} />
-            <OptNum label="Bedrooms" step={1} {...field("bedrooms")} />
-            <OptNum label="Year built" step={1} {...field("yearBuilt")} />
+            <div className="pair">
+              <OptNum label="Bedrooms" step={1} {...field("bedrooms")} />
+              <OptNum label="Year built" step={1} {...field("yearBuilt")} />
+            </div>
             <Select label="Heating" options={[["electric_heat", "Electric or heat pump"], ["gas_heat", "Natural gas"]]} {...field("heating")} />
             <Select label="Air conditioning" options={[[null, "Not known"], ["central", "Central"], ["room", "Room units"], ["any", "Yes, type not known"], ["none", "None"]]} {...field("cooling")} />
             <Select label="Pool" options={[[null, "Not known"], [true, "Yes"], [false, "No"]]} {...field("pool")} />
           </Group>
-          <Group title="You and the place">
+          <Group title="Tax and insurance">
             <Select label="Will you live in the home?" options={[[true, "Yes, my main home"], [false, "No"]]} {...field("liveInHome")} />
             <Select label="FEMA flood zone" options={[["outside", "Outside the high-risk zone"], ["sfha", "High-risk zone (A or V)"]]} {...field("floodZone")} />
             <Select label="Flood insurance" options={[[true, "Include"], [false, "Leave out"]]} {...field("buyFlood")} />
@@ -171,11 +158,66 @@ export function Calculator(props: { place: Place; example: boolean; changed: Cha
           </Group>
           <StateGrade st={st} />
         </aside>
+
+        <div className="calc-results pane" id="pane-costs" role="tabpanel" aria-labelledby="tab-costs">
+          <div className="total-card" ref={totalRef} id="estimate-total">
+            <PlaceHeader place={place} example={props.example} />
+            <div className="total-top">
+              <p className="total-figure">
+                {usd10(result.monthly)}
+                <small> / month</small>
+              </p>
+              <div className="total-side">
+                {Math.round(result.monthlyLow / 10) !== Math.round(result.monthlyHigh / 10) && (
+                  <p>
+                    Likely <b>{usd10(result.monthlyLow)}</b> to <b>{usd10(result.monthlyHigh)}</b>
+                  </p>
+                )}
+                <p>
+                  <b>{usd10(result.yearly)}</b> a year · <b>{usd(result.downPayment)}</b> down
+                </p>
+              </div>
+            </div>
+            <Breakdown result={result} />
+            <p className="total-note">The likely range puts each tested line at the low or high end of its range. Closing costs are not included.</p>
+          </div>
+          <ul className="tiles">
+            {counted.map((l) => (
+              <LineTile key={`${place.zip}-${l.key}`} {...lineProps(l)} />
+            ))}
+          </ul>
+          {notCounted.length > 0 && (
+            <div className="not-counted">
+              <h3>Not counted for this home</h3>
+              <ul>
+                {notCounted.map((l) => (
+                  <NotCountedRow key={`${place.zip}-${l.key}`} {...lineProps(l)} />
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
-      <a href="#estimate-total" className={`sticky-total${totalVisible ? "" : " show"}`} aria-hidden={totalVisible} tabIndex={totalVisible ? -1 : 0}>
-        <span>A month to own</span>
-        <b>{usd10(result.monthly)}</b>
-      </a>
+      <div className={`sticky-total${totalVisible && tab === "costs" ? "" : " show"}`} aria-hidden={totalVisible && tab === "costs"}>
+        <span>
+          <b>{usd10(result.monthly)}</b> / month
+        </span>
+        {tab === "costs" ? (
+          <button type="button" tabIndex={totalVisible ? -1 : 0} onClick={showInputs}>
+            Change inputs
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setTab("costs");
+              document.getElementById("estimate")?.scrollIntoView({ block: "start" });
+            }}
+          >
+            See the costs
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -194,24 +236,21 @@ function PlaceHeader({ place, example }: { place: Place; example: boolean }) {
   if (f?.listing) chips.push(`Listed ${usd(f.listing.price)}`);
   if (f?.flatCharges?.amount) chips.push(`Flat charges ${usd(f.flatCharges.amount)}/yr`);
   return (
-    <div className="place-head" id="estimate-total">
-      {example && <p className="example-tag">Example</p>}
-      <h2>{f ? f.label : `ZIP ${place.zip}, ${STATE_NAMES[st] ?? st}`}</h2>
-      {example ? (
-        <p className="place-sub">This is an area estimate for one ZIP code. Search an address above to get your home's own figures.</p>
-      ) : f ? (
-        chips.length > 0 ? (
-          <ul className="chips" aria-label="From the records at this address">
-            {chips.map((c) => (
-              <li key={c}>{c}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="place-sub">No county or property record matched this address; the estimates are the area's.</p>
-        )
+    <div className="place-head">
+      <p className="place-label">
+        {f ? f.label : STATE_NAMES[st] ?? st}
+        {example && <span className="example-tag">Example</span>}
+      </p>
+      {chips.length > 0 ? (
+        <ul className="chips" aria-label="From the records at this address">
+          {chips.map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
       ) : (
-        <p className="place-sub">An area estimate. Search the full address for the home's flood zone, facts and asking price.</p>
+        <p className="place-sub">No county or property record matched this address; the estimates are the area's.</p>
       )}
+      {example && <p className="place-sub">An example from public records. Search a street address above for your home.</p>}
     </div>
   );
 }
@@ -414,87 +453,135 @@ function Select<T extends string | number | boolean | null>(p: FieldProps<T> & {
   );
 }
 
-function LineRow({ line, onSet, onReset }: { line: Line; onSet: (v: number) => void; onReset: () => void }) {
+/** The "Enter my figure" control: a link, then a small form for the monthly figure. */
+function SetFigure({ line, onSet, onReset }: { line: Line; onSet: (v: number) => void; onReset: () => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const zero = line.yearly === 0 && !line.setByUser;
+  if (editing)
+    return (
+      <form
+        className="set"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const v = Number(draft.replace(/[$,\s]/g, ""));
+          if (Number.isFinite(v) && v >= 0) onSet(v * 12);
+          setEditing(false);
+        }}
+      >
+        <label>
+          $<input autoFocus inputMode="decimal" aria-label={`${line.label} a month`} value={draft} onChange={(e) => setDraft(e.target.value)} />
+          /mo
+        </label>
+        <button type="submit" className="btn-small">
+          Set
+        </button>
+        <button type="button" className="link" onClick={() => setEditing(false)}>
+          Cancel
+        </button>
+      </form>
+    );
+  if (line.setByUser)
+    return (
+      <button type="button" className="link" onClick={onReset}>
+        Use the estimate{line.estimate !== null ? ` (${usd10(line.estimate / 12)}/mo)` : ""}
+      </button>
+    );
+  return (
+    <button
+      type="button"
+      className="link"
+      onClick={() => {
+        setDraft(line.yearly > 0 ? String(Math.round(line.yearly / 12)) : "");
+        setEditing(true);
+      }}
+    >
+      Enter my figure
+    </button>
+  );
+}
+
+function How({ line }: { line: Line }) {
+  return (
+    <details className="how">
+      <summary>How we got this</summary>
+      {line.source && <p className="how-source">{line.source}</p>}
+      <ul>
+        {line.notes.map((n) => (
+          <li key={n}>{n}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function LineTile({ line, onSet, onReset }: { line: Line; onSet: (v: number) => void; onReset: () => void }) {
   const hasRange = line.low !== null && line.high !== null && line.high > line.low;
   // the range bar: the low-to-high span on a scale from 0 to 1.25 × the high end, the figure as a tick
   const scale = hasRange ? line.high! * 1.25 : 1;
   return (
-    <li className={`line${zero ? " zero" : ""}${line.setByUser ? " user" : ""}`}>
-      <div className="line-main">
-        <span className="line-label">
-          {line.label}
-          {line.setByUser && <span className="tag">Your figure</span>}
-        </span>
-        <span className="line-figure">
-          {usd10(line.yearly / 12)}
-          <small>/mo</small>
-        </span>
-      </div>
+    <li className={`tile-card${line.setByUser ? " user" : ""}`}>
+      <p className="tile-label">
+        {line.label}
+        {line.setByUser && <span className="tag">Your figure</span>}
+      </p>
+      <p className="tile-figure">
+        {usd10(line.yearly / 12)}
+        <small>/mo</small>
+      </p>
       {hasRange && (
-        <div className="range" aria-label={`Range ${usd10(line.low! / 12)} to ${usd10(line.high! / 12)} a month`}>
+        <div className="range" role="img" aria-label={`Range ${usd10(line.low! / 12)} to ${usd10(line.high! / 12)} a month`}>
           <span className="range-span" style={{ left: `${(line.low! / scale) * 100}%`, width: `${((line.high! - line.low!) / scale) * 100}%` }} />
-          <span className="range-tick" style={{ left: `${(line.yearly / scale) * 100}%` }} />
+          <span className="range-tick" style={{ left: `${(Math.min(line.yearly, scale) / scale) * 100}%` }} />
         </div>
       )}
-      <div className="line-sub">
-        <span>
-          {usd10(line.yearly)} a year
-          {hasRange && (
-            <>
-              {" "}
-              · most {usd10(line.low! / 12)} to {usd10(line.high! / 12)}/mo
-            </>
-          )}
-        </span>
-        {editing ? (
-          <form
-            className="set"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const v = Number(draft.replace(/[$,\s]/g, ""));
-              if (Number.isFinite(v) && v >= 0) onSet(v * 12);
-              setEditing(false);
-            }}
-          >
-            <label>
-              $<input autoFocus inputMode="decimal" aria-label={`${line.label} a month`} value={draft} onChange={(e) => setDraft(e.target.value)} />
-              /mo
-            </label>
-            <button type="submit" className="btn-small">
-              Set
-            </button>
-            <button type="button" className="link" onClick={() => setEditing(false)}>
-              Cancel
-            </button>
-          </form>
-        ) : line.setByUser ? (
-          <button type="button" className="link" onClick={onReset}>
-            Use the estimate{line.estimate !== null ? ` (${usd10(line.estimate / 12)}/mo)` : ""}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="link"
-            onClick={() => {
-              setDraft(String(Math.round(line.yearly / 12)));
-              setEditing(true);
-            }}
-          >
-            Enter my figure
-          </button>
-        )}
-      </div>
-      <details className="how">
-        <summary>{line.source || "How we got this"}</summary>
-        <ul>
-          {line.notes.map((n) => (
-            <li key={n}>{n}</li>
-          ))}
-        </ul>
-      </details>
+      <p className="tile-sub">
+        {hasRange ? `Most ${usd10(line.low! / 12)} to ${usd10(line.high! / 12)}` : `${usd10(line.yearly)} a year`}
+      </p>
+      <SetFigure line={line} onSet={onSet} onReset={onReset} />
+      <How line={line} />
     </li>
+  );
+}
+
+function NotCountedRow({ line, onSet, onReset }: { line: Line; onSet: (v: number) => void; onReset: () => void }) {
+  return (
+    <li>
+      <div>
+        <b>{line.label}</b>
+        <span className="muted"> · {line.notes[0] ?? line.source}</span>
+      </div>
+      <SetFigure line={line} onSet={onSet} onReset={onReset} />
+    </li>
+  );
+}
+
+/** A choice shown as buttons (few options). */
+function Pills<T extends string>(p: FieldProps<T> & { options: Opt<T>[] }) {
+  const text = p.options.find(([v]) => v === p.defaultLabel)?.[1] ?? String(p.defaultLabel);
+  return (
+    <div className={`field${p.isChanged ? " changed" : ""}`}>
+      <span className="label" id={`${idOf(p.label)}-l`}>
+        {p.label}
+      </span>
+      <div className="pills" role="group" aria-labelledby={`${idOf(p.label)}-l`}>
+        {p.options.map(([v, t]) => (
+          <button key={v} type="button" aria-pressed={p.value === v} onClick={() => v !== p.value && p.onChange(v)}>
+            {t}
+          </button>
+        ))}
+      </div>
+      <p className="hint">
+        {p.isChanged ? (
+          <>
+            Your choice. Estimate: {text}.{" "}
+            <button type="button" className="link" onClick={p.onReset}>
+              Use the estimate
+            </button>
+          </>
+        ) : (
+          p.source
+        )}
+      </p>
+    </div>
   );
 }

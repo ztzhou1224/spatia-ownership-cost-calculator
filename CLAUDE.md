@@ -15,13 +15,16 @@ Guidance for Claude Code in this repository.
   only (`src/lib/analytics.ts`). Events carry the field and the value it changed to (owner, the same day: "And to what number.
   Also recording the value"), never the address or the ZIP: `change_<field>` 1.5 s after the last change of that field with
   `new_value` / `new_value_num` / `default_value`, `reset_<field>`, `set_line_<line>` (the monthly figure typed),
-  `reset_line_<line>`, `search_address`, `search_zip`. The page address
-  Google gets has no query, and the page no longer writes `?zip=` into the address bar.
+  `reset_line_<line>`, `search_address`. The page address Google gets has no query.
 - ONE PAGE, production level (owner, 2026-11-19: "treat this like an production level site, not only needs a landing page the
   whole app should be one page"): `src/App.tsx` (sticky header, hero with the search, the estimate, How it works, the state
-  coverage tile map, questions, footer) and `src/Calculator.tsx` (the result and the inputs). It opens on an example area
-  estimate (ZIP 33606, marked "Example", never sent to analytics). Spatia's design tokens and Inter; SEO meta, JSON-LD,
-  robots.txt and sitemap.xml in `index.html` / `public/`.
+  coverage tile map, questions, footer) and `src/Calculator.tsx` (the result and the inputs). The "workbench" design (owner,
+  2026-11-19: "I like B with C's state coverage", https://claude.ai/artifact/7cvxR3mJqUMXCx8SMX2hUN): a dark teal top band with the
+  search; the inputs left, the total, its bar and one tile per cost right; Costs / Inputs tabs and a floating total on a phone; the
+  coverage as text beside the tile map. ADDRESS ONLY (owner, the same day: "remove the zipcode match it doesn't make any sense"):
+  a ZIP code alone is refused with a sentence. The page opens on an example address of public records only
+  (`src/data/example-address.json`, written by `scripts/record-example.ts`, RentCast's parts removed; marked "Example", never sent
+  to analytics). Spatia's design tokens and Inter; SEO meta, JSON-LD, robots.txt and sitemap.xml in `index.html` / `public/`.
 - RentCast (owner 2026-11-18): the property record only, through the allowlist in `src/lib/rentcast.ts` (never an owner field,
   the zoning, the APN, the subdivision or the legal description); its facts are labelled RentCast's, never a value of the home.
 - A PILOT layer is never published: the data build reads a withheld layer only with `TX_PILOT_PREVIEW=1`, for a local look, and

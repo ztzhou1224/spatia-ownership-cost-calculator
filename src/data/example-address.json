@@ -1,0 +1,32 @@
+{
+  "note": "Recorded by scripts/record-example.ts from the live lookup; RentCast's property record and listing removed. Never hand-edit.",
+  "recorded": "2026-11-19",
+  "facts": {
+    "label": "1023 W Gore St, Orlando, FL 32805",
+    "zip": "32805",
+    "st": "FL",
+    "county": "12095",
+    "floodZone": "outside",
+    "floodZoneCode": "X",
+    "roll": {
+      "homeType": "house",
+      "useLabel": "DOR 001 — Single Family",
+      "yearBuilt": 1954,
+      "livingSqft": 2618,
+      "units": 2,
+      "justValue": 272420,
+      "rollYear": 2025
+    },
+    "flDistrict": "ORL28",
+    "flatCharges": {
+      "amount": 252.86,
+      "year": 2025,
+      "count": 1,
+      "status": "matched"
+    },
+    "city": "Orlando",
+    "property": null,
+    "listing": null,
+    "txSchoolDistrict": null
+  }
+}

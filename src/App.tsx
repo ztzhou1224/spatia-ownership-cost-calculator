@@ -1,63 +1,58 @@
 import { useEffect, useState } from "react";
 import { Calculator, type Changed } from "./Calculator";
+import example from "./data/example-address.json";
 import { track } from "./lib/analytics";
 import { NATIONAL, type LineKey } from "./lib/calc";
 import { gradeOf, GRADE_WORDS, STATE_NAMES, TILES, type Grade } from "./lib/coverage";
 import { loadAddress, loadPlace } from "./lib/data";
+import type { AddressFacts } from "./lib/lookup";
 import type { Place } from "./lib/types";
 
 const ERRORS: Record<string, string> = {
-  format: "Enter an address, or a 5-digit ZIP code.",
-  unknown: "We have no data for this ZIP code.",
-  not_found: "We could not find this address. Check it, or enter a ZIP code.",
-  not_trusted: "We could not place this address on a building. Try the full street address, or enter a ZIP code.",
-  unavailable: "The address lookup is not available now. Enter a ZIP code.",
-  bad_request: "Enter an address, or a 5-digit ZIP code.",
-  busy: "Too many lookups in a minute. Wait a moment, or enter a ZIP code.",
+  empty: "Enter the street address of the home.",
+  zip: "Enter the home's street address. A ZIP code alone is not enough: the costs depend on the home.",
+  unknown: "We have no data for this address's ZIP code.",
+  not_found: "We could not find this address. Check the street, the city and the state.",
+  not_trusted: "We could not place this address on a building. Try the full street address with the city and state.",
+  unavailable: "The address lookup is not available now. Try again in a minute.",
+  bad_request: "Enter the street address of the home.",
+  busy: "Too many lookups in a minute. Wait a moment and try again.",
+  format: "Enter the street address of the home.",
 };
 
-/** The page opens on this area estimate, marked as an example. */
-const EXAMPLE_ZIP = "33606";
-const TRY: string[] = ["2910 W Fair Oaks Ave, Tampa, FL", "1023 W Gore St, Orlando, FL", "78703"];
+/** The page opens on this address, marked as an example: public records only (`scripts/record-example.ts`). */
+const EXAMPLE = example.facts as AddressFacts;
+const TRY: string[] = ["2910 W Fair Oaks Ave, Tampa, FL", "1023 W Gore St, Orlando, FL"];
 
 export function App() {
-  const [input, setInput] = useState(() => new URLSearchParams(location.search).get("zip") ?? "");
+  const [input, setInput] = useState("");
   const [place, setPlace] = useState<Place | null>(null);
-  const [example, setExample] = useState(true);
+  const [isExample, setIsExample] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [changed, setChanged] = useState<Changed>({});
   const [setLines, setSetLines] = useState<Partial<Record<LineKey, number>>>({});
   const [busy, setBusy] = useState(false);
 
-  async function search(raw: string, opts: { asExample?: boolean; scroll?: boolean } = {}) {
+  async function search(raw: string) {
     const q = raw.trim();
-    if (!q) {
-      setError(ERRORS.format);
-      return;
-    }
+    if (!q) return setError(ERRORS.empty);
+    if (/^\d{5}(-\d{4})?$/.test(q)) return setError(ERRORS.zip);
     setBusy(true);
     setError(null);
-    const isZip = /^\d{5}$/.test(q);
-    if (!opts.asExample) track(isZip ? "search_zip" : "search_address");
-    const r = isZip ? await loadPlace(q) : await loadAddress(q);
+    track("search_address");
+    const r = await loadAddress(q);
     setBusy(false);
-    if (!r.ok) {
-      setError(ERRORS[r.reason]);
-      return;
-    }
+    if (!r.ok) return setError(ERRORS[r.reason]);
     setPlace(r.place);
-    setExample(!!opts.asExample);
-    setChanged((c) => (!opts.asExample && !example && "price" in c && !r.place.facts?.listing ? { price: c.price } : {}));
+    // a price the visitor typed is kept from one real address to the next, unless the new home has its own asking price
+    setChanged((c) => (!isExample && "price" in c && !r.place.facts?.listing ? { price: c.price } : {}));
+    setIsExample(false);
     setSetLines({});
-    if (opts.scroll) document.getElementById("estimate")?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    document.getElementById("estimate")?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
 
   useEffect(() => {
-    const zip = new URLSearchParams(location.search).get("zip");
-    if (zip && /^\d{5}$/.test(zip)) void search(zip);
-    else void search(EXAMPLE_ZIP, { asExample: true });
-    // once, on the first render
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadPlace(EXAMPLE.zip, EXAMPLE).then((r) => r.ok && setPlace((p) => p ?? r.place));
   }, []);
 
   return (
@@ -65,80 +60,81 @@ export function App() {
       <a className="skip" href="#estimate">
         Skip to the estimate
       </a>
-      <header className="site-head">
-        <div className="wrap head-row">
-          <a href="#top" className="brand" aria-label="Spatia Cost to Own, to the top">
-            <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-              <rect width="32" height="32" rx="8" fill="#4f46e5" />
-              <path d="M8 16c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 8-8 8" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-              <circle cx="16" cy="16" r="3" fill="#fff" />
-            </svg>
-            <span>
-              Spatia <em>Cost to Own</em>
-            </span>
-          </a>
-          <nav aria-label="On this page">
-            <a href="#estimate">Estimate</a>
-            <a href="#how">How it works</a>
-            <a href="#coverage">Coverage</a>
-            <a href="#faq">Questions</a>
-          </nav>
-        </div>
-      </header>
-
-      <main id="top">
-        <section className="hero">
-          <div className="wrap hero-inner">
-            <p className="kicker">Free · no sign-up · every figure sourced</p>
-            <h1>What will this home really cost each month?</h1>
-            <p className="hero-lead">The loan, property tax, insurance, energy and upkeep for any U.S. home. Each figure starts from public records and published rates, and you can change every one.</p>
-            <form
-              className="search"
-              role="search"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void search(input, { scroll: true });
-              }}
-            >
-              <label htmlFor="q" className="sr-only">
-                Address or ZIP code
-              </label>
-              <input id="q" autoComplete="street-address" maxLength={200} placeholder="Enter an address or ZIP code" value={input} onChange={(e) => setInput(e.target.value)} />
-              <button type="submit" disabled={busy}>
-                {busy ? "Looking up…" : "Estimate"}
-              </button>
-            </form>
-            {error ? (
-              <p className="error" role="alert">
-                {error}
-              </p>
-            ) : (
-              <p className="try">
-                Try{" "}
-                {TRY.map((t, i) => (
-                  <span key={t}>
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={() => {
-                        setInput(t);
-                        void search(t, { scroll: true });
-                      }}
-                    >
-                      {t}
-                    </button>
-                    {i < TRY.length - 1 ? ", " : ""}
-                  </span>
-                ))}
-              </p>
-            )}
+      <div className="band">
+        <header className="site-head">
+          <div className="wrap head-row">
+            <a href="#top" className="brand" aria-label="Spatia Cost to Own, to the top">
+              <svg viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+                <rect width="28" height="28" rx="7" fill="#2dd4bf" />
+                <path d="M7 14.5 14 8l7 6.5V21H7z" fill="none" stroke="#0c2a28" strokeWidth="2" strokeLinejoin="round" />
+              </svg>
+              <span>Spatia Cost to Own</span>
+            </a>
+            <nav aria-label="On this page">
+              <a href="#estimate">Estimate</a>
+              <a href="#how">How it works</a>
+              <a href="#coverage">Coverage</a>
+              <a href="#faq">Questions</a>
+            </nav>
+          </div>
+        </header>
+        <section className="hero" id="top">
+          <div className="wrap hero-row">
+            <div className="hero-text">
+              <h1>The monthly cost of a U.S. home, worked out in the open</h1>
+              <p>Loan, property tax, insurance, energy and upkeep. Every figure starts as an estimate with a source, and you can change any of them.</p>
+            </div>
+            <div className="hero-search">
+              <form
+                className="search"
+                role="search"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void search(input);
+                }}
+              >
+                <label htmlFor="q" className="sr-only">
+                  Street address of the home
+                </label>
+                <input id="q" autoComplete="street-address" maxLength={200} placeholder="Street address, city, state" value={input} onChange={(e) => setInput(e.target.value)} />
+                <button type="submit" disabled={busy}>
+                  {busy ? "Looking up…" : "Estimate"}
+                </button>
+              </form>
+              {error ? (
+                <p className="error" role="alert">
+                  {error}
+                </p>
+              ) : (
+                <p className="try">
+                  Try{" "}
+                  {TRY.map((t, i) => (
+                    <span key={t}>
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() => {
+                          setInput(t);
+                          void search(t);
+                        }}
+                      >
+                        {t}
+                      </button>
+                      {i < TRY.length - 1 ? " · " : ""}
+                    </span>
+                  ))}
+                </p>
+              )}
+            </div>
           </div>
         </section>
+      </div>
 
-        <section id="estimate" className="section estimate" aria-label="The estimate">
+      <main>
+        <section id="estimate" className="estimate" aria-label="The estimate">
           <div className="wrap">
             {place ? (
-              <Calculator place={place} example={example} changed={changed} setChanged={setChanged} setLines={setLines} setSetLines={setSetLines} />
+              <Calculator place={place} example={isExample} changed={changed} setChanged={setChanged} setLines={setLines} setSetLines={setSetLines} />
             ) : (
               <div className="loading" aria-live="polite">
                 Loading the example…
@@ -177,8 +173,6 @@ export function App() {
 
         <section id="coverage" className="section alt">
           <div className="wrap">
-            <h2>How strong the estimate is in each state</h2>
-            <p className="section-lead">Every state gets a full estimate. The property tax decides how close it is, because states tax a new owner in different ways.</p>
             <CoverageMap />
           </div>
         </section>
@@ -199,9 +193,7 @@ export function App() {
       <footer className="site-foot">
         <div className="wrap foot-grid">
           <div>
-            <p className="foot-brand">
-              Spatia <em>Cost to Own</em>
-            </p>
+            <p className="foot-brand">Spatia Cost to Own</p>
             <p>Estimates, not quotes. A lender, an insurer and the county give the real figures.</p>
             <p className="foot-links">
               <a href="https://home.runspatia.com">Spatia Home: the full report on a home</a>
@@ -237,6 +229,7 @@ const FAQ: [string, string][] = [
   ["Is this a quote?", "No. These are estimates from public records and published rates. A lender quotes the loan, an insurer the premium, and the county sends the tax bill."],
   ["Why is the property tax different from the listing?", "A listing shows the seller's bill. In many states a sale changes the taxed value, and the seller's exemptions do not pass to you. The estimate is for a new owner."],
   ["Where does the price come from?", "When the home is listed for sale, the asking price. Otherwise the area's typical home value. Type the price you will pay for your own figure."],
+  ["Why do I need a full address?", "The costs depend on the home: its size, its flood zone, its tax district and its asking price. A ZIP code holds many different homes."],
   ["What does the range on a line mean?", "Where a back-test measured it, 8 in 10 real figures fell inside the range. A line without a range has no tested spread."],
   ["What is not included?", "Closing costs, the mortgage interest tax deduction, home price changes and the return you give up on the down payment."],
   ["Is it free?", "Yes. No account and no sign-up. For the full report on a home, with its flood, hazard and neighborhood records, see Spatia Home."],
@@ -248,43 +241,46 @@ function CoverageMap() {
   const g = pick ? gradeOf(pick) : null;
   return (
     <div className="coverage">
-      <div className="tilemap" role="group" aria-label="Estimate grade by state">
-        {TILES.map(([st, x, y]) => (
-          <button
-            key={st}
-            type="button"
-            className={`tile g${gradeOf(st)}${pick === st ? " picked" : ""}`}
-            style={{ gridColumn: x + 1, gridRow: y + 1 }}
-            aria-label={`${STATE_NAMES[st]}: ${GRADE_WORDS[gradeOf(st)].name}`}
-            aria-pressed={pick === st}
-            onClick={() => setPick(pick === st ? null : st)}
-          >
-            {st}
-          </button>
-        ))}
+      <div className="coverage-text">
+        <h2>Sharper in some states</h2>
+        <p className="section-lead">
+          Every state gets a full estimate. The property tax decides how close it gets: Florida's tax line is tested on real bills, California and Texas read the rates at the address, and
+          elsewhere we use the county's typical rate from the Census.
+        </p>
+        <div className="pick" aria-live="polite">
+          {pick && g ? (
+            <>
+              <p className="pick-grade">
+                <span className={`grade g${g}`}>{g}</span> {STATE_NAMES[pick]}: {GRADE_WORDS[g].name}
+              </p>
+              <p>{GRADE_WORDS[g].text}</p>
+            </>
+          ) : (
+            <p className="pick-hint">Select a state on the map to see what its grade means.</p>
+          )}
+        </div>
       </div>
-      <div className="coverage-side">
-        {pick && g ? (
-          <div className="pick" aria-live="polite">
-            <p className="kicker">{STATE_NAMES[pick]}</p>
-            <p className="pick-grade">
-              <span className={`grade g${g}`}>{g}</span> {GRADE_WORDS[g].name}
-            </p>
-            <p>{GRADE_WORDS[g].text}</p>
-          </div>
-        ) : (
-          <p className="pick-hint">Select a state to see its grade.</p>
-        )}
-        <ul className="grades">
+      <div>
+        <div className="tilemap" role="group" aria-label="Estimate grade by state">
+          {TILES.map(([st, x, y]) => (
+            <button
+              key={st}
+              type="button"
+              className={`tile g${gradeOf(st)}${pick === st ? " picked" : ""}`}
+              style={{ gridColumn: x + 1, gridRow: y + 1 }}
+              aria-label={`${STATE_NAMES[st]}: ${GRADE_WORDS[gradeOf(st)].name}`}
+              aria-pressed={pick === st}
+              onClick={() => setPick(pick === st ? null : st)}
+            >
+              {st}
+            </button>
+          ))}
+        </div>
+        <ul className="map-legend">
           {(Object.keys(GRADE_WORDS) as Grade[]).map((k) => (
             <li key={k}>
-              <span className={`grade g${k}`}>{k}</span>
-              <div>
-                <b>
-                  {GRADE_WORDS[k].name} · {counts[k]} {counts[k] === 1 ? "state" : "places"}
-                </b>
-                <p>{GRADE_WORDS[k].text}</p>
-              </div>
+              <i className={`tile g${k}`} aria-hidden="true" />
+              {k} · {GRADE_WORDS[k].name} · {counts[k]}
             </li>
           ))}
         </ul>

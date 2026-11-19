@@ -9,7 +9,7 @@
  *     `new_value_num` (a number field only) and `default_value` (the estimate it replaced);
  *   - `reset_<field>` when the visitor goes back to the estimate, with the estimate as `new_value`;
  *   - `set_line_<line>` with the monthly figure typed (`new_value`, `new_value_num`, `default_value`) / `reset_line_<line>`;
- *   - `search_address` / `search_zip` for a search (no query text).
+ *   - `search_address` for a search (no query text).
  * The page address Google gets has no query (`page_location` without `?zip=`).
  */
 export const GTM_ID = "GTM-N3B62N2R";
