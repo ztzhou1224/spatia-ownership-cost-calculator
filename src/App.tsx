@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { calculate, LINE_KEYS, NATIONAL, resolveAssumptions, type Assumptions, type Line, type LineKey } from "./lib/calc";
+import { track, trackChange, trackReset } from "./lib/analytics";
 import { loadAddress, loadPlace } from "./lib/data";
 import type { TxUnit } from "./lib/texas";
 import type { Place } from "./lib/types";
@@ -30,7 +31,9 @@ export function App() {
   async function load(input: string) {
     const q = input.trim();
     setBusy(true);
-    const r = /^\d{5}$/.test(q) ? await loadPlace(q) : await loadAddress(q);
+    const isZip = /^\d{5}$/.test(q);
+    track(isZip ? "search_zip" : "search_address");
+    const r = isZip ? await loadPlace(q) : await loadAddress(q);
     setBusy(false);
     if (!r.ok) {
       setError(ERRORS[r.reason]);
@@ -40,9 +43,6 @@ export function App() {
     setPlace(r.place);
     setChanged((c) => ("price" in c ? { price: c.price } : {}));
     setSetLines({});
-    const u = new URL(location.href);
-    u.searchParams.set("zip", r.place.zip);
-    history.replaceState(null, "", u);
   }
   useEffect(() => {
     if (/^\d{5}$/.test(zipInput)) void load(zipInput);
@@ -90,13 +90,18 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
     value: values[k],
     isChanged: k in changed,
     source: sources[k],
-    onChange: (v: Assumptions[K]) => setChanged((c) => ({ ...c, [k]: v })),
-    onReset: () =>
+    onChange: (v: Assumptions[K]) => {
+      trackChange(k);
+      setChanged((c) => ({ ...c, [k]: v }));
+    },
+    onReset: () => {
+      trackReset(k);
       setChanged((c) => {
         const n = { ...c };
         delete n[k];
         return n;
-      }),
+      });
+    },
     defaultLabel: defaults[k],
   });
 
@@ -148,7 +153,10 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
           <Select label="FEMA flood zone" options={[["outside", "Outside the high-risk zone"], ["sfha", "High-risk zone (A or V)"]]} {...field("floodZone")} />
           <Select label="Flood insurance" options={[[true, "Include"], [false, "Leave out"]]} {...field("buyFlood")} />
           {st === "TX" && (place.county?.tx_units?.length ?? 0) > 0 && (
-            <TxUnits units={place.county!.tx_units!} value={values.txUnits} isChanged={"txUnits" in changed} source={sources.txUnits} onChange={(v) => setChanged((c) => ({ ...c, txUnits: v }))} onReset={field("txUnits").onReset} />
+            <TxUnits units={place.county!.tx_units!} value={values.txUnits} isChanged={"txUnits" in changed} source={sources.txUnits} onChange={(v) => {
+                trackChange("txUnits");
+                setChanged((c) => ({ ...c, txUnits: v }));
+              }} onReset={field("txUnits").onReset} />
           )}
           {st === "FL" && districts.length > 0 && (
             <Select label="Tax district" options={districts.map((d) => [d.code, `${d.name} (${(d.school + d.nonschool).toFixed(2)} mills)`] as [string, string])} {...field("flDistrict")} />
@@ -186,14 +194,18 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
               <LineRow
                 key={k}
                 line={l}
-                onSet={(v) => setSetLines((s) => ({ ...s, [k]: v }))}
-                onReset={() =>
+                onSet={(v) => {
+                  track(`set_line_${k}`, { line: k });
+                  setSetLines((s) => ({ ...s, [k]: v }));
+                }}
+                onReset={() => {
+                  track(`reset_line_${k}`, { line: k });
                   setSetLines((s) => {
                     const n = { ...s };
                     delete n[k];
                     return n;
-                  })
-                }
+                  });
+                }}
               />
             );
           })}
