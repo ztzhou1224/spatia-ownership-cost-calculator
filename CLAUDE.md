@@ -8,18 +8,14 @@ Guidance for Claude Code in this repository.
   need a server use the cloudflare worker"; the subdomain was left to us). Logic in `src/lib/` (pure, tested with vitest), UI in
   `src/App.tsx`, the Worker in `workers/app.ts` (static assets, `/api/lookup`, `/api/record`). The lookup answers `no-store`.
 - The site is free with no login, and it RECORDS what every visitor enters (owner direction 2026-11-19: "This should be a free
-  site without login, the purpose is to collect data. We record what every user put in combination"). EVERY CALCULATION GOES
-  THROUGH THE WORKER (owner, 2026-11-19: "every calculation needs to go through backend"): `src/lib/recorder.ts` posts each
-  change to `POST /api/estimate` (300 ms debounce); the Worker checks it (`src/lib/record.ts` `requestProblem`), loads the place
-  from its static assets, runs the same `resolveAssumptions` + `calculate`, saves the combination in D1 `spatia-ownership-cost`
-  table `inputs` and answers; the page shows the Worker's answer (its own result only until then, or if the Worker fails). The
-  table holds
+  site without login, the purpose is to collect data. We record what every user put in combination"): `src/lib/recorder.ts`
+  posts a snapshot on each load, after 2.5 s of quiet edits and when the tab is hidden; `/api/record` checks it
+  (`src/lib/record.ts` `payloadProblem`) and inserts it into D1 `spatia-ownership-cost` table `inputs`
   (`migrations/0001_inputs.sql`: the query typed, the geocoded address, the place, every input, the changed inputs, the set lines,
   each line and the totals). Never an IP address, a name, an email, a cookie or a device field; a visit is tied together only by
   the tab's random id. The disclosure is in the first-visit privacy notice and on `/privacy`, not on the calculator page (owner,
   2026-11-19: "Don't say it plainly on the page, put it in the accept cookie or someplace"): `src/Privacy.tsx`; the visitor can
-  choose "Do not save my inputs" (`src/lib/consent.ts`, this browser only): its calculations are sent with `record: "no"` and not
-  saved, and the visit's earlier rows are deleted (`POST /api/forget`). Secrets `SPATIA_CLIENT_ID` / `SPATIA_CLIENT_SECRET` (a spatia-auth service client, audience
+  choose "Do not save my inputs" (`src/lib/consent.ts`, this browser only), and then nothing is posted. Secrets `SPATIA_CLIENT_ID` / `SPATIA_CLIENT_SECRET` (a spatia-auth service client, audience
   `geocode`, bound to Home's service user) and `RENTCAST_API_KEY` are Worker secrets only, never in this PUBLIC repo.
 - RentCast (owner 2026-11-18): the property record only, through the allowlist in `src/lib/rentcast.ts` (never an owner field,
   the zoning, the APN, the subdivision or the legal description); its facts are labelled RentCast's, never a value of the home.

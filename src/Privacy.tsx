@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { consentOf, setConsent, type Consent } from "./lib/consent";
-import { forgetSession } from "./lib/recorder";
 
 /** The notice at first visit (owner, 2026-11-19: the recording is said in the consent notice, not on the page). */
 export function ConsentBanner() {
@@ -9,7 +8,6 @@ export function ConsentBanner() {
   const choose = (c: Consent) => {
     setConsent(c);
     setLocal(c);
-    if (c === "no") forgetSession();
   };
   return (
     <div className="consent" role="region" aria-label="Privacy notice">
@@ -35,7 +33,6 @@ export function PrivacyPage() {
   const choose = (c: Consent) => {
     setConsent(c);
     setLocal(c);
-    if (c === "no") forgetSession();
   };
   return (
     <div className="page privacy-page">
@@ -48,7 +45,7 @@ export function PrivacyPage() {
       <p>
         When you use this calculator, we save what you enter and what the calculator shows: the address or ZIP code you type, the address we
         found, every input (for example the price, the down payment, the home's facts and the fees), the inputs and cost lines you change,
-        and the totals. The calculator runs on our server, and we save each calculation it makes for you.
+        and the totals. We save a new copy when a place loads, when you stop changing inputs, and when you leave the page.
       </p>
       <h2>What we do not save</h2>
       <p>We do not save your name, email address or IP address, and we do not set a cookie to follow you. A random number made by your browser tab links the copies of one visit; it ends when you close the tab.</p>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { calculate, LINE_KEYS, NATIONAL, resolveAssumptions, type Assumptions, type Line, type LineKey } from "./lib/calc";
 import { loadAddress, loadPlace } from "./lib/data";
-import { useServerEstimate } from "./lib/recorder";
+import { useRecorder } from "./lib/recorder";
 import { ConsentBanner } from "./Privacy";
 import type { TxUnit } from "./lib/texas";
 import type { Place } from "./lib/types";
@@ -88,13 +88,9 @@ export function App() {
 
 function Calculator(props: { place: Place; query: string; changed: Changed; setChanged: (f: (c: Changed) => Changed) => void; setLines: Partial<Record<LineKey, number>>; setSetLines: (f: (s: Partial<Record<LineKey, number>>) => Partial<Record<LineKey, number>>) => void }) {
   const { place, changed, setChanged, setLines, setSetLines } = props;
-  // the Worker calculates (and saves) every combination; the page's own result shows until its answer arrives
-  const local = useMemo(() => {
-    const r = resolveAssumptions(place, changed);
-    return { ...r, result: calculate(place, r.values, setLines) };
-  }, [place, changed, setLines]);
-  const server = useServerEstimate({ place, query: props.query, changed, setLines }).answer;
-  const { values, defaults, sources, result } = server ?? local;
+  const { values, defaults, sources } = useMemo(() => resolveAssumptions(place, changed), [place, changed]);
+  const result = useMemo(() => calculate(place, values, setLines), [place, values, setLines]);
+  useRecorder({ place, query: props.query, values, changed, setLines, result });
   const st = place.zipData.st;
 
   const field = <K extends keyof Assumptions>(k: K) => ({
