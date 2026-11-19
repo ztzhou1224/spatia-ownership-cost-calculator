@@ -32,7 +32,7 @@ export interface FlDistrict {
 
 export interface CountyData {
   /** ACS 5-year: owners' median real estate taxes ÷ median home value, owner-weighted over the county's tracts. */
-  area_tax: { rate_pct: number; tracts: number; owners: number; median_value?: number } | null;
+  area_tax: { rate_pct: number; tracts: number; owners: number; median_value?: number; scope?: "county" | "state" } | null;
   /** NFIP's new-business Risk Rating 2.0 premiums of similar homes, keyed `<zone_group>:<primary_residence>`. */
   flood: Record<string, FloodFigure> | null;
   fl_districts?: FlDistrict[];

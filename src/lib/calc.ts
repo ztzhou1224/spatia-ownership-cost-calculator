@@ -145,7 +145,7 @@ export function defaultsFor(p: Place): { values: Assumptions; sources: DefaultSo
     price: listing
       ? `The asking price on RentCast's sale listing${listing.listedDate ? `, listed ${listing.listedDate}` : ""}. Enter the price you will pay.`
       : c?.area_tax?.median_value
-        ? "The county's typical home value (Census ACS 5-year): no active listing found. Enter your price."
+        ? `The ${c.area_tax.scope === "state" ? "state's" : "county's"} typical home value (Census ACS 5-year): no active listing found. Enter your price.`
         : "A placeholder. Enter your price.",
     downPct: "20 %: the down payment that needs no mortgage insurance on a conventional loan.",
     ratePct: `${NATIONAL.mortgage.source}, 30-year fixed, week of ${NATIONAL.mortgage.week_of}.`,

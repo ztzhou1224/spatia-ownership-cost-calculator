@@ -327,6 +327,19 @@ async function main() {
     console.log(`Texas: taxing units in ${txBy.size} counties${txLayer.withheld ? " (PILOT PREVIEW)" : ""}`);
   } else console.log("Texas: tx_property_tax_rates is withheld (pilot); Texas uses the area rate");
 
+  // 8c. The state's owner-weighted area rate, for a county with no tract figure (Connecticut: ACS tracts carry the 2022 planning
+  // regions, the ZIP file the 2020 counties; a few small counties have no published tract figure).
+  const stateRate = new Map<string, { tax: number; value: number; owners: number; tracts: number }>();
+  for (const [c, a] of areaRate) {
+    const st = STATE_FIPS[c.slice(0, 2)];
+    const t = stateRate.get(st) ?? { tax: 0, value: 0, owners: 0, tracts: 0 };
+    t.tax += a.tax;
+    t.value += a.value;
+    t.owners += a.owners;
+    t.tracts += a.tracts;
+    stateRate.set(st, t);
+  }
+
   // 9. The county files, by state. A ZIP Treasury does not publish takes the median of the county's published ZIPs (their latest year).
   const hoiCounty = new Map<string, { usd: number; year: number; zips: number }>();
   for (const c of counties) {
@@ -339,7 +352,9 @@ async function main() {
   const byState = new Map<string, Record<string, unknown>>();
   for (const c of counties) {
     const st = STATE_FIPS[c.slice(0, 2)];
-    const a = areaRate.get(c);
+    const own = areaRate.get(c);
+    const a = own ?? stateRate.get(STATE_FIPS[c.slice(0, 2)]);
+    const areaScope = own ? "county" : "state";
     const districts = flBy.get(c);
     let flDefault: string | null = null;
     if (districts?.length) {
@@ -349,7 +364,7 @@ async function main() {
     const m = byState.get(st) ?? {};
     m[c] = {
       // median_value: the owner-weighted mean of the tracts' median home values (a typical price, the calculator's default)
-      area_tax: a && a.tracts >= 1 ? { rate_pct: round((a.tax / a.value) * 100, 3), tracts: a.tracts, owners: Math.round(a.owners), median_value: Math.round(a.value / a.owners / 1000) * 1000 } : null,
+      area_tax: a && a.tracts >= 1 ? { rate_pct: round((a.tax / a.value) * 100, 3), tracts: a.tracts, owners: Math.round(a.owners), median_value: Math.round(a.value / a.owners / 1000) * 1000, scope: areaScope } : null,
       flood: nfipBy.get(c) ?? null,
       fl_districts: districts ? districts.sort((x, y) => y.parcels - x.parcels) : undefined,
       fl_default_district: flDefault ?? undefined,

@@ -144,7 +144,7 @@ export function areaRateTax(x: TaxInputs, c: CountyData | null): TaxEstimate | n
     high: null,
     effectivePct: pct,
     method: "price × the area's effective rate",
-    source: "Census ACS 5-year: owners' median real estate taxes ÷ median home value, in the county",
+    source: `Census ACS 5-year: owners' median real estate taxes ÷ median home value, in the ${c.area_tax.scope === "state" ? "state (no county figure)" : "county"}`,
     notes: [
       "The area's effective rate: what owners in the county pay, divided by what they say their home is worth.",
       "In a state that caps the taxed value until a sale, a new owner usually pays more than this rate.",
