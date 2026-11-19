@@ -1,0 +1,35 @@
+# Cut a release BY HAND only (owner, 2026-11-19: "Cut a release" / "Can't you do that?"): Actions -> Cut release -> Run workflow.
+# It tags the branch head vYYYY.MM.DD (or the tag given) and creates the GitHub release with notes from the commits since the
+# last release. It runs no tests and deploys nothing: the gate (pnpm test, pnpm build) runs before a push, and the Worker is
+# deployed with `wrangler deploy` (README). No push, pull request or schedule trigger.
+name: Cut release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to create (empty: vYYYY.MM.DD of today, UTC)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_INPUT: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="${TAG_INPUT:-v$(date -u +%Y.%m.%d)}"
+          if ! [[ "$tag" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then echo "::error::tag must look like vYYYY.MM.DD[.N]"; exit 1; fi
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then echo "::error::tag $tag already exists"; exit 1; fi
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --generate-notes
+          echo "Released $tag at $GITHUB_SHA"
