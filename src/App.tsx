@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { calculate, LINE_KEYS, NATIONAL, resolveAssumptions, type Assumptions, type Line, type LineKey } from "./lib/calc";
 import { loadAddress, loadPlace } from "./lib/data";
 import { useRecorder } from "./lib/recorder";
-import { ConsentBanner } from "./Privacy";
 import type { TxUnit } from "./lib/texas";
 import type { Place } from "./lib/types";
 
@@ -74,14 +73,13 @@ export function App() {
           </button>
         </form>
         {error && <p className="error">{error}</p>}
+        <p className="privacy">What you enter here, the address and every input included, is recorded to improve these estimates. No name, email or IP address is recorded. An address is also sent to Spatia's geocoder and data service and to RentCast to read the flood zone, the county record and the property record.</p>
       </header>
       {place && <Calculator place={place} query={query} changed={changed} setChanged={setChanged} setLines={setLines} setSetLines={setSetLines} />}
       <footer className="foot">
         Data: U.S. Census Bureau ACS and ZCTA files; U.S. Treasury FIO; FEMA NFIP; EIA (RECS 2020, Form 861, natural gas prices); NOAA climate normals; Florida DOR; California
-        BOE and county rate books; {NATIONAL.mortgage.source}. Built {NATIONAL.generated} from Spatia's data service (build {NATIONAL.catalog_build.slice(0, 15)}). Estimates, not quotes.{" "}
-        <a href="/privacy">Privacy</a>
+        BOE and county rate books; {NATIONAL.mortgage.source}. Built {NATIONAL.generated} from Spatia's data service (build {NATIONAL.catalog_build.slice(0, 15)}). Estimates, not quotes.
       </footer>
-      <ConsentBanner />
     </div>
   );
 }
