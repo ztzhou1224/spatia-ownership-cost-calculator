@@ -6,8 +6,14 @@ Guidance for Claude Code in this repository.
   change any input or set any cost line. The study and its sources: `docs/study.md`.
 - Vite + React + TypeScript on ONE Cloudflare Worker (`spatia-ownership-cost`, cost.runspatia.com; owner 2026-11-18: "if you
   need a server use the cloudflare worker"; the subdomain was left to us). Logic in `src/lib/` (pure, tested with vitest), UI in
-  `src/App.tsx`, the Worker in `workers/app.ts` (static assets + `/api/lookup`). The address is never stored or logged; the
-  lookup answers `no-store`. Secrets `SPATIA_CLIENT_ID` / `SPATIA_CLIENT_SECRET` (a spatia-auth service client, audience
+  `src/App.tsx`, the Worker in `workers/app.ts` (static assets, `/api/lookup`, `/api/record`). The lookup answers `no-store`.
+- The site is free with no login, and it RECORDS what every visitor enters (owner direction 2026-11-19: "This should be a free
+  site without login, the purpose is to collect data. We record what every user put in combination"): `src/lib/recorder.ts`
+  posts a snapshot on each load, after 2.5 s of quiet edits and when the tab is hidden; `/api/record` checks it
+  (`src/lib/record.ts` `payloadProblem`) and inserts it into D1 `spatia-ownership-cost` table `inputs`
+  (`migrations/0001_inputs.sql`: the query typed, the geocoded address, the place, every input, the changed inputs, the set lines,
+  each line and the totals). Never an IP address, a name, an email, a cookie or a device field; a visit is tied together only by
+  the tab's random id. The page says so under the search box. Secrets `SPATIA_CLIENT_ID` / `SPATIA_CLIENT_SECRET` (a spatia-auth service client, audience
   `geocode`, bound to Home's service user) and `RENTCAST_API_KEY` are Worker secrets only, never in this PUBLIC repo.
 - RentCast (owner 2026-11-18): the property record only, through the allowlist in `src/lib/rentcast.ts` (never an owner field,
   the zoning, the APN, the subdivision or the legal description); its facts are labelled RentCast's, never a value of the home.
