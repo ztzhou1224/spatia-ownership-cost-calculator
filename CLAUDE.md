@@ -13,7 +13,9 @@ Guidance for Claude Code in this repository.
   (`src/lib/record.ts` `payloadProblem`) and inserts it into D1 `spatia-ownership-cost` table `inputs`
   (`migrations/0001_inputs.sql`: the query typed, the geocoded address, the place, every input, the changed inputs, the set lines,
   each line and the totals). Never an IP address, a name, an email, a cookie or a device field; a visit is tied together only by
-  the tab's random id. The page says so under the search box. Secrets `SPATIA_CLIENT_ID` / `SPATIA_CLIENT_SECRET` (a spatia-auth service client, audience
+  the tab's random id. The disclosure is in the first-visit privacy notice and on `/privacy`, not on the calculator page (owner,
+  2026-11-19: "Don't say it plainly on the page, put it in the accept cookie or someplace"): `src/Privacy.tsx`; the visitor can
+  choose "Do not save my inputs" (`src/lib/consent.ts`, this browser only), and then nothing is posted. Secrets `SPATIA_CLIENT_ID` / `SPATIA_CLIENT_SECRET` (a spatia-auth service client, audience
   `geocode`, bound to Home's service user) and `RENTCAST_API_KEY` are Worker secrets only, never in this PUBLIC repo.
 - RentCast (owner 2026-11-18): the property record only, through the allowlist in `src/lib/rentcast.ts` (never an owner field,
   the zoning, the APN, the subdivision or the legal description); its facts are labelled RentCast's, never a value of the home.

@@ -5,6 +5,7 @@
 import { useEffect, useRef } from "react";
 import national from "../data/national.generated.json";
 import type { Assumptions, LineKey, Result } from "./calc";
+import { consentOf, mayRecord } from "./consent";
 import { makePayload, type RecordKind } from "./record";
 import type { Place } from "./types";
 
@@ -40,6 +41,7 @@ export function useRecorder(s: { place: Place; query: string; values: Assumption
   const shotKey = JSON.stringify([s.changed, s.setLines]);
 
   const shoot = (kind: RecordKind, beacon = false) => {
+    if (!mayRecord()) return;
     const c = latest.current;
     const body = JSON.stringify(
       makePayload({ session, seq: ++seq, kind, query: c.query, place: c.place, values: c.values, changed: Object.keys(c.changed) as (keyof Assumptions)[], setLines: c.setLines, result: c.result, build: (national as { catalog_build: string }).catalog_build.slice(0, 80) }),
@@ -48,9 +50,11 @@ export function useRecorder(s: { place: Place; query: string; values: Assumption
     send(body, beacon);
   };
 
-  // a place loaded
+  // a place loaded: sent at once when the visitor accepted on an earlier visit; for a first visit (no choice yet) it is held and
+  // goes out with the first edit or when the tab is hidden, so a visitor who declines first is never saved
   useEffect(() => {
-    shoot("load");
+    if (consentOf() === "ok") shoot("load");
+    else dirty.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeKey]);
 
