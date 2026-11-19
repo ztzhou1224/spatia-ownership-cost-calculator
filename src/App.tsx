@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { calculate, LINE_KEYS, NATIONAL, resolveAssumptions, type Assumptions, type Line, type LineKey } from "./lib/calc";
-import { track, trackChange, trackReset } from "./lib/analytics";
+import { track, trackChange, trackLine, trackReset } from "./lib/analytics";
 import { loadAddress, loadPlace } from "./lib/data";
 import type { TxUnit } from "./lib/texas";
 import type { Place } from "./lib/types";
@@ -91,11 +91,11 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
     isChanged: k in changed,
     source: sources[k],
     onChange: (v: Assumptions[K]) => {
-      trackChange(k);
+      trackChange(k, v, defaults[k]);
       setChanged((c) => ({ ...c, [k]: v }));
     },
     onReset: () => {
-      trackReset(k);
+      trackReset(k, defaults[k]);
       setChanged((c) => {
         const n = { ...c };
         delete n[k];
@@ -154,7 +154,7 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
           <Select label="Flood insurance" options={[[true, "Include"], [false, "Leave out"]]} {...field("buyFlood")} />
           {st === "TX" && (place.county?.tx_units?.length ?? 0) > 0 && (
             <TxUnits units={place.county!.tx_units!} value={values.txUnits} isChanged={"txUnits" in changed} source={sources.txUnits} onChange={(v) => {
-                trackChange("txUnits");
+                trackChange("txUnits", v, defaults.txUnits);
                 setChanged((c) => ({ ...c, txUnits: v }));
               }} onReset={field("txUnits").onReset} />
           )}
@@ -195,11 +195,11 @@ function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c:
                 key={k}
                 line={l}
                 onSet={(v) => {
-                  track(`set_line_${k}`, { line: k });
+                  trackLine(k, v / 12, l.estimate === null ? null : l.estimate / 12);
                   setSetLines((s) => ({ ...s, [k]: v }));
                 }}
                 onReset={() => {
-                  track(`reset_line_${k}`, { line: k });
+                  trackLine(k, null, null);
                   setSetLines((s) => {
                     const n = { ...s };
                     delete n[k];

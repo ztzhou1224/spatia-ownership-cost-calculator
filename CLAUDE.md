@@ -12,8 +12,10 @@ Guidance for Claude Code in this repository.
   `geocode`, bound to Home's service user) and `RENTCAST_API_KEY` are Worker secrets only, never in this PUBLIC repo.
 - Google Analytics (owner, 2026-11-19: "Let's put every filed change on sentry or google analytics I want to see which field
   user changed most"): Spatia's Tag Manager container `GTM-N3B62N2R` (as Home and Crime), production builds on cost.runspatia.com
-  only (`src/lib/analytics.ts`). Events carry a NAME only, never a value, an address or a ZIP: `change_<field>` (once per field
-  per 1.5 s of typing), `reset_<field>`, `set_line_<line>`, `reset_line_<line>`, `search_address`, `search_zip`. The page address
+  only (`src/lib/analytics.ts`). Events carry the field and the value it changed to (owner, the same day: "And to what number.
+  Also recording the value"), never the address or the ZIP: `change_<field>` 1.5 s after the last change of that field with
+  `new_value` / `new_value_num` / `default_value`, `reset_<field>`, `set_line_<line>` (the monthly figure typed),
+  `reset_line_<line>`, `search_address`, `search_zip`. The page address
   Google gets has no query, and the page no longer writes `?zip=` into the address bar.
 - RentCast (owner 2026-11-18): the property record only, through the allowlist in `src/lib/rentcast.ts` (never an owner field,
   the zoning, the APN, the subdivision or the legal description); its facts are labelled RentCast's, never a value of the home.
