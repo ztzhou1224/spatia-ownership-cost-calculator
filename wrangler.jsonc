@@ -10,12 +10,7 @@
   "routes": [{ "pattern": "cost.runspatia.com", "custom_domain": true }],
   "observability": { "enabled": true },
   // Each address lookup can cost a RentCast call: at most 10 a minute per visitor (Cloudflare's rate limiter, no stored state).
-  "ratelimits": [
-    { "name": "LOOKUP_LIMIT", "namespace_id": "4101", "simple": { "limit": 10, "period": 60 } },
-    { "name": "RECORD_LIMIT", "namespace_id": "4102", "simple": { "limit": 60, "period": 60 } }
-  ],
-  // What visitors enter (owner direction 2026-11-19): the `inputs` table, migrations/0001_inputs.sql.
-  "d1_databases": [{ "binding": "DB", "database_name": "spatia-ownership-cost", "database_id": "d464436a-aeee-4105-a723-9cf4ac5ba69f", "migrations_dir": "migrations" }],
+  "ratelimits": [{ "name": "LOOKUP_LIMIT", "namespace_id": "4101", "simple": { "limit": 10, "period": 60 } }],
   "assets": { "directory": "./dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
   "vars": {
     "AUTH_ISSUER": "https://auth.runspatia.com",

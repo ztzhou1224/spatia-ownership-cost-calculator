@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { calculate, LINE_KEYS, NATIONAL, resolveAssumptions, type Assumptions, type Line, type LineKey } from "./lib/calc";
 import { loadAddress, loadPlace } from "./lib/data";
-import { useRecorder } from "./lib/recorder";
 import type { TxUnit } from "./lib/texas";
 import type { Place } from "./lib/types";
 
@@ -26,7 +25,6 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [changed, setChanged] = useState<Changed>({});
   const [setLines, setSetLines] = useState<Partial<Record<LineKey, number>>>({});
-  const [query, setQuery] = useState("");
 
   const [busy, setBusy] = useState(false);
   async function load(input: string) {
@@ -39,7 +37,6 @@ export function App() {
       return;
     }
     setError(null);
-    setQuery(q);
     setPlace(r.place);
     setChanged((c) => ("price" in c ? { price: c.price } : {}));
     setSetLines({});
@@ -73,9 +70,9 @@ export function App() {
           </button>
         </form>
         {error && <p className="error">{error}</p>}
-        <p className="privacy">What you enter here, the address and every input included, is recorded to improve these estimates. No name, email or IP address is recorded. An address is also sent to Spatia's geocoder and data service and to RentCast to read the flood zone, the county record and the property record.</p>
+        <p className="privacy">An address is sent to Spatia's geocoder and data service and to RentCast to read the flood zone, the county record and the property record. It is not stored.</p>
       </header>
-      {place && <Calculator place={place} query={query} changed={changed} setChanged={setChanged} setLines={setLines} setSetLines={setSetLines} />}
+      {place && <Calculator place={place} changed={changed} setChanged={setChanged} setLines={setLines} setSetLines={setSetLines} />}
       <footer className="foot">
         Data: U.S. Census Bureau ACS and ZCTA files; U.S. Treasury FIO; FEMA NFIP; EIA (RECS 2020, Form 861, natural gas prices); NOAA climate normals; Florida DOR; California
         BOE and county rate books; {NATIONAL.mortgage.source}. Built {NATIONAL.generated} from Spatia's data service (build {NATIONAL.catalog_build.slice(0, 15)}). Estimates, not quotes.
@@ -84,11 +81,10 @@ export function App() {
   );
 }
 
-function Calculator(props: { place: Place; query: string; changed: Changed; setChanged: (f: (c: Changed) => Changed) => void; setLines: Partial<Record<LineKey, number>>; setSetLines: (f: (s: Partial<Record<LineKey, number>>) => Partial<Record<LineKey, number>>) => void }) {
+function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c: Changed) => Changed) => void; setLines: Partial<Record<LineKey, number>>; setSetLines: (f: (s: Partial<Record<LineKey, number>>) => Partial<Record<LineKey, number>>) => void }) {
   const { place, changed, setChanged, setLines, setSetLines } = props;
   const { values, defaults, sources } = useMemo(() => resolveAssumptions(place, changed), [place, changed]);
   const result = useMemo(() => calculate(place, values, setLines), [place, values, setLines]);
-  useRecorder({ place, query: props.query, values, changed, setLines, result });
   const st = place.zipData.st;
 
   const field = <K extends keyof Assumptions>(k: K) => ({

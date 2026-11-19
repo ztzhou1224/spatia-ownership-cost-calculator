@@ -3,12 +3,10 @@
  *
  * The lookup asks Spatia's geocoder (`/geocode`) for the address, and, for a trusted (rooftop-grade) point only, Spatia's data
  * service (`/query`) at that point: FEMA's flood zone; in Florida the county roll's parcel and its tax district. The address is
- * not logged and the answer is `no-store`; the page records what the visitor entered through `POST /api/record` (owner
- * direction 2026-11-19), into D1 `inputs`, with no IP address, name, email or device field. The Worker authenticates with a spatia-auth service client
+ * never stored or logged, and the answer is `no-store`. The Worker authenticates with a spatia-auth service client
  * (`SPATIA_CLIENT_ID` / `SPATIA_CLIENT_SECRET`, Worker secrets; audience `geocode`).
  */
 import { floodZoneOf, rollOf, type AddressFacts, type LookupAnswer } from "../src/lib/lookup";
-import { payloadProblem, RECORD_MAX_BYTES, type RecordPayload } from "../src/lib/record";
 import { matchListing, matchProperty, RENTCAST_LISTINGS_URL, RENTCAST_PROPERTIES_URL, type ListingFacts, type PropertyFacts } from "../src/lib/rentcast";
 
 export interface Env {
@@ -19,10 +17,6 @@ export interface Env {
   RENTCAST_API_KEY?: string;
   /** Cloudflare's rate limiter: lookups per visitor a minute (each one can cost a RentCast call). */
   LOOKUP_LIMIT?: { limit(o: { key: string }): Promise<{ success: boolean }> };
-  /** Records per visitor a minute. */
-  RECORD_LIMIT?: { limit(o: { key: string }): Promise<{ success: boolean }> };
-  /** D1 `spatia-ownership-cost`: the `inputs` table (migrations/0001_inputs.sql). */
-  DB?: { prepare(sql: string): { bind(...v: unknown[]): { run(): Promise<unknown> } } };
   AUTH_ISSUER: string;
   API_ORIGIN: string;
 }
@@ -200,33 +194,6 @@ export default {
         console.error("lookup failed:", e instanceof Error ? e.message : "unknown");
         return json({ ok: false, reason: "unavailable" }, 502);
       }
-    }
-    if (url.pathname === "/api/record") {
-      if (request.method !== "POST") return json({ ok: false }, 405);
-      if (!env.DB) return json({ ok: false, reason: "off" }, 503);
-      if (env.RECORD_LIMIT && !(await env.RECORD_LIMIT.limit({ key: request.headers.get("CF-Connecting-IP") ?? "unknown" })).success) return json({ ok: false, reason: "busy" }, 429);
-      const text = await request.text();
-      if (text.length > RECORD_MAX_BYTES) return json({ ok: false, reason: "too_large" }, 413);
-      let p: unknown;
-      try {
-        p = JSON.parse(text);
-      } catch {
-        return json({ ok: false, reason: "not_json" }, 400);
-      }
-      const problem = payloadProblem(p);
-      if (problem) return json({ ok: false, reason: problem }, 400);
-      const r = p as RecordPayload;
-      try {
-        await env.DB.prepare(
-          "INSERT OR IGNORE INTO inputs (session, seq, kind, recorded_at, query, address, zip, st, county, values_json, changed_json, set_lines_json, lines_json, monthly, yearly, build) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-          .bind(r.session, r.seq, r.kind, new Date().toISOString(), r.query, r.place.address, r.place.zip, r.place.st, r.place.county, JSON.stringify(r.values), JSON.stringify(r.changed), JSON.stringify(r.setLines), JSON.stringify(r.lines), r.monthly, r.yearly, r.build)
-          .run();
-      } catch (e) {
-        console.error("record failed:", e instanceof Error ? e.message : "unknown");
-        return json({ ok: false, reason: "unavailable" }, 502);
-      }
-      return json({ ok: true });
     }
     return env.ASSETS.fetch(request);
   },

@@ -89,12 +89,3 @@ pnpm data
 ```
 
 The build caches each read under `.cache/`. If the token expires (15 minutes), mint a new one and run again.
-
-## Recording (owner direction 2026-11-19)
-
-"This should be a free site without login, the purpose is to collect data. We record what every user put in combination." The
-page posts a snapshot of each visit to `/api/record` (on load, after 2.5 s of quiet edits, when the tab is hidden); the Worker
-stores it in D1 `spatia-ownership-cost`, table `inputs`. Each row: the query typed, the geocoded address, ZIP, state, county,
-every input as used, which inputs and cost lines the visitor changed, each line and the totals, the data build. No IP address,
-name, email, cookie or device field. What this collects that no public source has: the prices people consider, their real
-insurance quotes, tax bills, HOA fees and utility bills when they type their own figures.
