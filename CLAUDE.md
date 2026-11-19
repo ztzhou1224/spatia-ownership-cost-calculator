@@ -29,4 +29,8 @@ Guidance for Claude Code in this repository.
 - The rules carried from Spatia Home: a figure with a range only where a back-test measured it; published figures stated as
   published (Treasury's premium is its year's, never scaled); no estimate is called a quote; no figure about the residents of an area.
 - Gate before a push: `pnpm test` and `pnpm build`.
+- Releases by hand only: *Actions → Cut release → Run workflow* (`.github/workflows/cut-release.yml`; owner 2026-11-19, "A cut
+  release button please") tags the branch head `vYYYY.MM.DD` (or the tag typed), creates the GitHub release, builds and deploys the
+  Worker with the repository secrets `CLOUDFLARE_ALL_IN_ONE` / `CLOUDFLARE_ACCOUNT_ID`. No workflow runs on a push. This session's
+  git proxy refuses a tag push: start the workflow through the GitHub tools (`actions_run_trigger`).
 - Talk to the owner in ASD-STE100 Simplified Technical English.
