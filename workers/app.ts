@@ -3,12 +3,14 @@
  *
  * The lookup asks Spatia's geocoder (`/geocode`) for the address, and, for a trusted (rooftop-grade) point only, Spatia's data
  * service (`/query`) at that point: FEMA's flood zone; in Florida the county roll's parcel and its tax district. The address is
- * not logged and the answer is `no-store`; the page records what the visitor entered through `POST /api/record` (owner
- * direction 2026-11-19), into D1 `inputs`, with no IP address, name, email or device field. The Worker authenticates with a spatia-auth service client
+ * not logged and the answer is `no-store`. Every calculation goes through `POST /api/estimate` (owner, 2026-11-19), which runs
+ * the calculator here and saves the combination in D1 `inputs`, with no IP address, name, email or device field. The Worker authenticates with a spatia-auth service client
  * (`SPATIA_CLIENT_ID` / `SPATIA_CLIENT_SECRET`, Worker secrets; audience `geocode`).
  */
 import { floodZoneOf, rollOf, type AddressFacts, type LookupAnswer } from "../src/lib/lookup";
-import { payloadProblem, RECORD_MAX_BYTES, type RecordPayload } from "../src/lib/record";
+import { calculate, NATIONAL, resolveAssumptions } from "../src/lib/calc";
+import { placeOf, type JsonReader } from "../src/lib/data";
+import { ESTIMATE_MAX_BYTES, RECORD_SQL, recordRow, requestProblem, type EstimateAnswer, type EstimateRequest } from "../src/lib/record";
 import { matchListing, matchProperty, RENTCAST_LISTINGS_URL, RENTCAST_PROPERTIES_URL, type ListingFacts, type PropertyFacts } from "../src/lib/rentcast";
 
 export interface Env {
@@ -19,7 +21,7 @@ export interface Env {
   RENTCAST_API_KEY?: string;
   /** Cloudflare's rate limiter: lookups per visitor a minute (each one can cost a RentCast call). */
   LOOKUP_LIMIT?: { limit(o: { key: string }): Promise<{ success: boolean }> };
-  /** Records per visitor a minute. */
+  /** Calculations per visitor a minute. */
   RECORD_LIMIT?: { limit(o: { key: string }): Promise<{ success: boolean }> };
   /** D1 `spatia-ownership-cost`: the `inputs` table (migrations/0001_inputs.sql). */
   DB?: { prepare(sql: string): { bind(...v: unknown[]): { run(): Promise<unknown> } } };
@@ -96,6 +98,27 @@ async function lookup(env: Env, subject: Record<string, unknown>, checks: Record
     out.set(c.id, c.status === "ok" ? (c.records ?? []).filter((x) => x.kind === "OBSERVED" && Object.keys(x.claim).length > 0).map((x) => x.claim) : []);
   }
   return out;
+}
+
+/** The calculator's input names (the defaults of any place carry every key). */
+const INPUT_KEYS: ReadonlySet<string> = new Set([
+  "price", "downPct", "ratePct", "termYears", "pmiPct", "homeType", "sqft", "bedrooms", "yearBuilt", "heating", "cooling", "pool", "liveInHome",
+  "floodZone", "buyFlood", "flDistrict", "txUnits", "electricityUsdPerKwh", "gasUsdPerMcf", "hoaMonthly", "flatChargesYearly", "waterMonthly", "maintenancePct",
+]);
+
+/** The static data tables, read from the Worker's own assets and kept per isolate. */
+const assetCache = new Map<string, Promise<unknown>>();
+function assetReader(env: Env, url: URL): JsonReader {
+  return <T>(path: string) => {
+    if (!assetCache.has(path))
+      assetCache.set(
+        path,
+        env.ASSETS.fetch(new Request(new URL(`/${path}`, url.origin)))
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null),
+      );
+    return assetCache.get(path) as Promise<T | null>;
+  };
 }
 
 /** RentCast's record for the geocoded address; any failure is no record (the lookup still answers). */
@@ -201,31 +224,46 @@ export default {
         return json({ ok: false, reason: "unavailable" }, 502);
       }
     }
-    if (url.pathname === "/api/record") {
+    if (url.pathname === "/api/estimate") {
       if (request.method !== "POST") return json({ ok: false }, 405);
-      if (!env.DB) return json({ ok: false, reason: "off" }, 503);
       if (env.RECORD_LIMIT && !(await env.RECORD_LIMIT.limit({ key: request.headers.get("CF-Connecting-IP") ?? "unknown" })).success) return json({ ok: false, reason: "busy" }, 429);
       const text = await request.text();
-      if (text.length > RECORD_MAX_BYTES) return json({ ok: false, reason: "too_large" }, 413);
+      if (text.length > ESTIMATE_MAX_BYTES) return json({ ok: false, reason: "too_large" }, 413);
       let p: unknown;
       try {
         p = JSON.parse(text);
       } catch {
         return json({ ok: false, reason: "not_json" }, 400);
       }
-      const problem = payloadProblem(p);
+      const problem = requestProblem(p, INPUT_KEYS);
       if (problem) return json({ ok: false, reason: problem }, 400);
-      const r = p as RecordPayload;
-      try {
-        await env.DB.prepare(
-          "INSERT OR IGNORE INTO inputs (session, seq, kind, recorded_at, query, address, zip, st, county, values_json, changed_json, set_lines_json, lines_json, monthly, yearly, build) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-          .bind(r.session, r.seq, r.kind, new Date().toISOString(), r.query, r.place.address, r.place.zip, r.place.st, r.place.county, JSON.stringify(r.values), JSON.stringify(r.changed), JSON.stringify(r.setLines), JSON.stringify(r.lines), r.monthly, r.yearly, r.build)
-          .run();
-      } catch (e) {
-        console.error("record failed:", e instanceof Error ? e.message : "unknown");
-        return json({ ok: false, reason: "unavailable" }, 502);
+      const r = p as EstimateRequest;
+      const loaded = await placeOf(assetReader(env, url), r.zip, r.facts);
+      if (!loaded.ok) return json({ ok: false, reason: loaded.reason }, 404);
+      const { values, defaults, sources } = resolveAssumptions(loaded.place, r.changed);
+      const result = calculate(loaded.place, values, r.setLines);
+      if (r.record !== "no" && env.DB) {
+        try {
+          await env.DB.prepare(RECORD_SQL)
+            .bind(...recordRow(r, values, result, loaded.place.zipData.st, loaded.place.zipData.county, NATIONAL.catalog_build))
+            .run();
+        } catch (e) {
+          console.error("record failed:", e instanceof Error ? e.message : "unknown");
+        }
       }
+      const answer: EstimateAnswer = { ok: true, values, defaults, sources, result };
+      return json(answer);
+    }
+    if (url.pathname === "/api/forget") {
+      if (request.method !== "POST" || !env.DB) return json({ ok: false }, 405);
+      let session: unknown;
+      try {
+        session = ((await request.json()) as { session?: unknown }).session;
+      } catch {
+        return json({ ok: false }, 400);
+      }
+      if (typeof session !== "string" || !/^[0-9a-f-]{36}$/.test(session)) return json({ ok: false }, 400);
+      await env.DB.prepare("DELETE FROM inputs WHERE session = ?").bind(session).run();
       return json({ ok: true });
     }
     return env.ASSETS.fetch(request);
