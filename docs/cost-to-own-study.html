@@ -385,7 +385,7 @@ footer { max-width: 1120px; margin: 0 auto; font-size: 13px; color: var(--muted)
     <h3 id="rules">Product rules</h3>
     <div class="cols">
       <div class="note"><h3>Honest figures</h3><ul><li>A range only where a back-test measured it.</li><li>Each figure names its source and year.</li><li>No estimate is called a quote.</li><li>The tax says which grade it is, in words.</li></ul></div>
-      <div class="note"><h3>Data collection</h3><ul><li>Free, no login (owner, 19 November 2026).</li><li>Every visit is recorded: the address, every input, what the visitor changed, each line and the total.</li><li>Never an IP address, name, email, cookie or device field; a visit is tied together by a random tab id.</li><li>The page says so under the search box.</li><li>No owner name, agent or MLS field is read from RentCast.</li></ul></div>
+      <div class="note"><h3>Privacy</h3><ul><li>The address is not stored or logged.</li><li>No owner name, agent or MLS field is read.</li><li>Analytics see the page, never the address.</li></ul></div>
       <div class="note"><h3>Cost control</h3><ul><li>Each address costs two RentCast calls (about $0.06 each, from Home's measurement): about $0.12 a lookup.</li><li>Today: 10 lookups a minute per visitor; no daily cap.</li><li>Needed: a daily cap and a short cache by address hash.</li></ul></div>
     </div>
   </section>
@@ -402,13 +402,13 @@ flowchart LR
   B[spatia-data] --> Q
   B -. data build .-> S
     </pre>
-    <p class="prose">One Worker serves the pages, the lookup API and the record API. The data tables are rebuilt from the data service by a script. What visitors enter goes to the D1 database <code>spatia-ownership-cost</code> (table <code>inputs</code>). A daily cap on RentCast calls can count in the same database.</p>
+    <p class="prose">One Worker serves the pages and one lookup API. The data tables are rebuilt from the data service by a script. Nothing about the reader is stored. To add saved results and a daily cap, the Worker needs one KV namespace.</p>
   </section>
 
   <section aria-labelledby="road">
     <h3 id="road">Phases</h3>
     <div class="phases">
-      <div class="phase"><span class="when">Phase 1 · now</span><div><b>Harden the pilot.</b> Recording of every visit (done 19 November). Next: a daily cap on RentCast calls, closing costs, the "What changes it" rows, and a weekly summary of what visitors entered.</div></div>
+      <div class="phase"><span class="when">Phase 1 · now</span><div><b>Harden the pilot.</b> Daily cap on RentCast calls, a cache by address hash, analytics, closing costs, the "What changes it" rows.</div></div>
       <div class="phase"><span class="when">Phase 2</span><div><b>Raise the grade.</b> Current owner's bill in the 39 C states; port DC and Ohio; more California rate books; Florida counties.</div></div>
       <div class="phase"><span class="when">Phase 3</span><div><b>The new design.</b> The result screen above, compare, share links, the phone layout.</div></div>
       <div class="phase"><span class="when">Phase 4</span><div><b>Search pages.</b> State and county guides from the data tables; the sitemap.</div></div>
@@ -429,9 +429,14 @@ flowchart LR
       <p class="meta">After A: I change the title, the header and the metadata. After B: you buy the domain; I move the Worker to it.</p>
     </div>
 
-    <div class="decision"><h3>D2 · Who may look up an address · decided</h3>
-      <p>Owner, 19 November 2026: "This should be a free site without login, the purpose is to collect data. We record what every user put in combination." Built and live: no login, and every visit is recorded.</p>
-      <p>Still open: a daily cap on RentCast spend (each address costs about $0.12). Today only the rate limit of 10 lookups a minute per visitor applies. A cap can count in the new database, so it needs no new service.</p>
+    <div class="decision"><h3>D2 · Who may look up an address</h3>
+      <p>Each address lookup costs about $0.12. A free, open lookup can cost a lot if a bot finds it.</p>
+      <div class="opts">
+        <div class="opt rec"><span class="rec-label">Recommended</span><b>A. Free, with a daily cap</b><span>Free for everyone up to a cap (for example $20 a day, about 160 lookups). Above it, the ZIP estimate still works. Needs one KV namespace.</span></div>
+        <div class="opt"><b>B. Free after sign-in</b><span>Each person signs in with Spatia's account. Fewer abuse risks, fewer users.</span></div>
+        <div class="opt"><b>C. No cap</b><span>The most use, and no limit on the RentCast bill.</span></div>
+      </div>
+      <p class="meta">After A: I create the KV namespace and the cap, and show the cap's use on the operator side. After B: I add sign-in through spatia-auth.</p>
     </div>
 
     <div class="decision"><h3>D3 · The tax default in the 39 C states</h3>
