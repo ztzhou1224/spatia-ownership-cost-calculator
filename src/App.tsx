@@ -1,415 +1,294 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { calculate, LINE_KEYS, NATIONAL, resolveAssumptions, type Assumptions, type Line, type LineKey } from "./lib/calc";
-import { track, trackChange, trackLine, trackReset } from "./lib/analytics";
+import { useEffect, useState } from "react";
+import { Calculator, type Changed } from "./Calculator";
+import { track } from "./lib/analytics";
+import { NATIONAL, type LineKey } from "./lib/calc";
+import { gradeOf, GRADE_WORDS, STATE_NAMES, TILES, type Grade } from "./lib/coverage";
 import { loadAddress, loadPlace } from "./lib/data";
-import type { TxUnit } from "./lib/texas";
 import type { Place } from "./lib/types";
-
-const usd = (v: number) => `$${Math.round(v).toLocaleString("en-US")}`;
-const usd10 = (v: number) => usd(Math.round(v / 10) * 10);
-
-type Changed = Partial<Assumptions>;
 
 const ERRORS: Record<string, string> = {
   format: "Enter an address, or a 5-digit ZIP code.",
   unknown: "We have no data for this ZIP code.",
   not_found: "We could not find this address. Check it, or enter a ZIP code.",
-  not_trusted: "We could not place this address on a building. Enter a ZIP code for the area's estimates.",
+  not_trusted: "We could not place this address on a building. Try the full street address, or enter a ZIP code.",
   unavailable: "The address lookup is not available now. Enter a ZIP code.",
   bad_request: "Enter an address, or a 5-digit ZIP code.",
   busy: "Too many lookups in a minute. Wait a moment, or enter a ZIP code.",
 };
 
+/** The page opens on this area estimate, marked as an example. */
+const EXAMPLE_ZIP = "33606";
+const TRY: string[] = ["2910 W Fair Oaks Ave, Tampa, FL", "1023 W Gore St, Orlando, FL", "78703"];
+
 export function App() {
-  const [zipInput, setZipInput] = useState(() => new URLSearchParams(location.search).get("zip") ?? "");
+  const [input, setInput] = useState(() => new URLSearchParams(location.search).get("zip") ?? "");
   const [place, setPlace] = useState<Place | null>(null);
+  const [example, setExample] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [changed, setChanged] = useState<Changed>({});
   const [setLines, setSetLines] = useState<Partial<Record<LineKey, number>>>({});
-
   const [busy, setBusy] = useState(false);
-  async function load(input: string) {
-    const q = input.trim();
+
+  async function search(raw: string, opts: { asExample?: boolean; scroll?: boolean } = {}) {
+    const q = raw.trim();
+    if (!q) {
+      setError(ERRORS.format);
+      return;
+    }
     setBusy(true);
+    setError(null);
     const isZip = /^\d{5}$/.test(q);
-    track(isZip ? "search_zip" : "search_address");
+    if (!opts.asExample) track(isZip ? "search_zip" : "search_address");
     const r = isZip ? await loadPlace(q) : await loadAddress(q);
     setBusy(false);
     if (!r.ok) {
       setError(ERRORS[r.reason]);
       return;
     }
-    setError(null);
     setPlace(r.place);
-    setChanged((c) => ("price" in c ? { price: c.price } : {}));
+    setExample(!!opts.asExample);
+    setChanged((c) => (!opts.asExample && !example && "price" in c && !r.place.facts?.listing ? { price: c.price } : {}));
     setSetLines({});
+    if (opts.scroll) document.getElementById("estimate")?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
+
   useEffect(() => {
-    if (/^\d{5}$/.test(zipInput)) void load(zipInput);
-    // only on the first render: a ZIP in the link
+    const zip = new URLSearchParams(location.search).get("zip");
+    if (zip && /^\d{5}$/.test(zip)) void search(zip);
+    else void search(EXAMPLE_ZIP, { asExample: true });
+    // once, on the first render
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <div className="page">
-      <header className="head">
-        <p className="eyebrow">Spatia · pilot</p>
-        <h1>What will this home cost to own?</h1>
-        <p className="lead">Every figure starts from an estimate for the place. Change any input, or type your own figure for any cost.</p>
-        <form
-          className="zip"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void load(zipInput);
-          }}
-        >
-          <label htmlFor="zip">Address or ZIP code</label>
-          <input id="zip" autoComplete="street-address" maxLength={200} placeholder="2910 W Fair Oaks Ave, Tampa, FL" value={zipInput} onChange={(e) => setZipInput(e.target.value)} />
-          <button type="submit" disabled={busy}>
-            {busy ? "Looking up…" : "Estimate"}
-          </button>
-        </form>
-        {error && <p className="error">{error}</p>}
-      </header>
-      {place && <Calculator place={place} changed={changed} setChanged={setChanged} setLines={setLines} setSetLines={setSetLines} />}
-      <footer className="foot">
-        Data: U.S. Census Bureau ACS and ZCTA files; U.S. Treasury FIO; FEMA NFIP; EIA (RECS 2020, Form 861, natural gas prices); NOAA climate normals; Florida DOR; California
-        BOE and county rate books; {NATIONAL.mortgage.source}. Built {NATIONAL.generated} from Spatia's data service (build {NATIONAL.catalog_build.slice(0, 15)}). Estimates, not quotes.
-      </footer>
-    </div>
-  );
-}
-
-function Calculator(props: { place: Place; changed: Changed; setChanged: (f: (c: Changed) => Changed) => void; setLines: Partial<Record<LineKey, number>>; setSetLines: (f: (s: Partial<Record<LineKey, number>>) => Partial<Record<LineKey, number>>) => void }) {
-  const { place, changed, setChanged, setLines, setSetLines } = props;
-  const { values, defaults, sources } = useMemo(() => resolveAssumptions(place, changed), [place, changed]);
-  const result = useMemo(() => calculate(place, values, setLines), [place, values, setLines]);
-  const st = place.zipData.st;
-
-  const field = <K extends keyof Assumptions>(k: K) => ({
-    value: values[k],
-    isChanged: k in changed,
-    source: sources[k],
-    onChange: (v: Assumptions[K]) => {
-      trackChange(k, v, defaults[k]);
-      setChanged((c) => ({ ...c, [k]: v }));
-    },
-    onReset: () => {
-      trackReset(k, defaults[k]);
-      setChanged((c) => {
-        const n = { ...c };
-        delete n[k];
-        return n;
-      });
-    },
-    defaultLabel: defaults[k],
-  });
-
-  const districts = place.county?.fl_districts ?? [];
-
-  return (
-    <main className="grid">
-      <section className="inputs" aria-label="Inputs">
-        <p className="where">
-          {place.facts ? <strong>{place.facts.label}</strong> : <>ZIP {place.zip}</>} · {st} · county {place.zipData.county}
-          {place.facts && (
-            <>
-              <br />
-              From the address: FEMA flood zone {place.facts.floodZoneCode ?? "not mapped"}
-              {place.facts.roll
-                ? `; the county roll's ${place.facts.roll.useLabel ?? "record"}${place.facts.roll.justValue ? `, just value $${place.facts.roll.justValue.toLocaleString("en-US")} (${place.facts.roll.rollYear}; not a price)` : ""}`
-                : st === "FL"
-                  ? "; no single parcel on the county roll at this point"
-                  : ""}
-              {place.facts.flatCharges?.amount !== null && place.facts.flatCharges?.amount !== undefined
-                ? `; flat charges on the county tax roll $${place.facts.flatCharges.amount.toLocaleString("en-US", { maximumFractionDigits: 0 })} a year`
-                : ""}
-              {place.facts.listing ? `; listed for sale at $${place.facts.listing.price.toLocaleString("en-US")}${place.facts.listing.listedDate ? ` since ${place.facts.listing.listedDate}` : ""}` : ""}
-              {place.facts.property
-                ? `; RentCast's property record: ${place.facts.property.propertyType ?? "type not stated"}${place.facts.property.bedrooms !== null ? `, ${place.facts.property.bedrooms} bedrooms` : ""}${place.facts.property.squareFootage ? `, ${place.facts.property.squareFootage.toLocaleString("en-US")} sq ft` : ""}${place.facts.property.yearBuilt ? `, built ${place.facts.property.yearBuilt}` : ""}`
-                : "; no RentCast property record matched this address"}
-              .
-            </>
-          )}
-        </p>
-        <Group title="The loan">
-          <Num label="Price" prefix="$" step={5000} {...field("price")} />
-          <Num label="Down payment" suffix="%" step={1} {...field("downPct")} />
-          <Num label="Interest rate" suffix="%" step={0.125} {...field("ratePct")} />
-          <Num label="Loan term" suffix="years" step={5} {...field("termYears")} />
-          {values.downPct < 20 && <Num label="Mortgage insurance" suffix="% a year" step={0.05} {...field("pmiPct")} />}
-        </Group>
-        <Group title="The home">
-          <Select label="Type" options={[["house", "House"], ["townhouse", "Townhouse"], ["condo", "Condo"], ["mobile", "Manufactured home"]]} {...field("homeType")} />
-          <Num label="Living area" suffix="sq ft" step={50} {...field("sqft")} />
-          <OptNum label="Bedrooms" step={1} {...field("bedrooms")} />
-          <OptNum label="Year built" step={1} {...field("yearBuilt")} />
-          <Select label="Heating" options={[["electric_heat", "Electric or heat pump"], ["gas_heat", "Natural gas"]]} {...field("heating")} />
-          <Select label="Air conditioning" options={[[null, "Not known"], ["central", "Central"], ["room", "Room units"], ["any", "Yes, type not known"], ["none", "None"]]} {...field("cooling")} />
-          <Select label="Pool" options={[[null, "Not known"], [true, "Yes"], [false, "No"]]} {...field("pool")} />
-        </Group>
-        <Group title="You and the place">
-          <Select label="Will you live in the home?" options={[[true, "Yes, my main home"], [false, "No"]]} {...field("liveInHome")} />
-          <Select label="FEMA flood zone" options={[["outside", "Outside the high-risk zone"], ["sfha", "High-risk zone (A or V)"]]} {...field("floodZone")} />
-          <Select label="Flood insurance" options={[[true, "Include"], [false, "Leave out"]]} {...field("buyFlood")} />
-          {st === "TX" && (place.county?.tx_units?.length ?? 0) > 0 && (
-            <TxUnits units={place.county!.tx_units!} value={values.txUnits} isChanged={"txUnits" in changed} source={sources.txUnits} onChange={(v) => {
-                trackChange("txUnits", v, defaults.txUnits);
-                setChanged((c) => ({ ...c, txUnits: v }));
-              }} onReset={field("txUnits").onReset} />
-          )}
-          {st === "FL" && districts.length > 0 && (
-            <Select label="Tax district" options={districts.map((d) => [d.code, `${d.name} (${(d.school + d.nonschool).toFixed(2)} mills)`] as [string, string])} {...field("flDistrict")} />
-          )}
-        </Group>
-        <Group title="Prices and other costs">
-          <Num label="Electricity price" prefix="$" suffix="per kWh" step={0.01} {...field("electricityUsdPerKwh")} />
-          {values.heating === "gas_heat" && <OptNum label="Gas price" prefix="$" suffix="per 1,000 cu ft" step={0.5} {...field("gasUsdPerMcf")} />}
-          <Num label="Flat charges on the tax bill" prefix="$" suffix="a year" step={10} {...field("flatChargesYearly")} />
-          <Num label="HOA or condo fee" prefix="$" suffix="a month" step={10} {...field("hoaMonthly")} />
-          <Num label="Water, sewer, trash" prefix="$" suffix="a month" step={5} {...field("waterMonthly")} />
-          <Num label="Maintenance" suffix="% of price a year" step={0.25} {...field("maintenancePct")} />
-        </Group>
-      </section>
-
-      <section className="results" aria-label="Costs">
-        <div className="total">
-          <p className="total-label">A month to own</p>
-          <p className="total-figure">{usd10(result.monthly)}</p>
-          <p className="total-range">
-            {Math.round(result.monthlyLow / 10) !== Math.round(result.monthlyHigh / 10) ? (
-              <>
-                With each tested line at the low or high end of its range: {usd10(result.monthlyLow)} to {usd10(result.monthlyHigh)} a month.
-              </>
-            ) : (
-              <>No tested range for this place.</>
-            )}{" "}
-            {usd10(result.yearly)} a year. Cash at closing: {usd(result.downPayment)} down payment, plus closing costs.
-          </p>
+    <>
+      <a className="skip" href="#estimate">
+        Skip to the estimate
+      </a>
+      <header className="site-head">
+        <div className="wrap head-row">
+          <a href="#top" className="brand" aria-label="Spatia Cost to Own, to the top">
+            <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+              <rect width="32" height="32" rx="8" fill="#4f46e5" />
+              <path d="M8 16c0-4.4 3.6-8 8-8s8 3.6 8 8-3.6 8-8 8" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+              <circle cx="16" cy="16" r="3" fill="#fff" />
+            </svg>
+            <span>
+              Spatia <em>Cost to Own</em>
+            </span>
+          </a>
+          <nav aria-label="On this page">
+            <a href="#estimate">Estimate</a>
+            <a href="#how">How it works</a>
+            <a href="#coverage">Coverage</a>
+            <a href="#faq">Questions</a>
+          </nav>
         </div>
-        <ul className="lines">
-          {LINE_KEYS.map((k) => {
-            const l = result.lines.find((x) => x.key === k)!;
-            return (
-              <LineRow
-                key={k}
-                line={l}
-                onSet={(v) => {
-                  trackLine(k, v / 12, l.estimate === null ? null : l.estimate / 12);
-                  setSetLines((s) => ({ ...s, [k]: v }));
-                }}
-                onReset={() => {
-                  trackLine(k, null, null);
-                  setSetLines((s) => {
-                    const n = { ...s };
-                    delete n[k];
-                    return n;
-                  });
-                }}
-              />
-            );
-          })}
-        </ul>
-      </section>
-    </main>
+      </header>
+
+      <main id="top">
+        <section className="hero">
+          <div className="wrap hero-inner">
+            <p className="kicker">Free · no sign-up · every figure sourced</p>
+            <h1>What will this home really cost each month?</h1>
+            <p className="hero-lead">The loan, property tax, insurance, energy and upkeep for any U.S. home. Each figure starts from public records and published rates, and you can change every one.</p>
+            <form
+              className="search"
+              role="search"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void search(input, { scroll: true });
+              }}
+            >
+              <label htmlFor="q" className="sr-only">
+                Address or ZIP code
+              </label>
+              <input id="q" autoComplete="street-address" maxLength={200} placeholder="Enter an address or ZIP code" value={input} onChange={(e) => setInput(e.target.value)} />
+              <button type="submit" disabled={busy}>
+                {busy ? "Looking up…" : "Estimate"}
+              </button>
+            </form>
+            {error ? (
+              <p className="error" role="alert">
+                {error}
+              </p>
+            ) : (
+              <p className="try">
+                Try{" "}
+                {TRY.map((t, i) => (
+                  <span key={t}>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => {
+                        setInput(t);
+                        void search(t, { scroll: true });
+                      }}
+                    >
+                      {t}
+                    </button>
+                    {i < TRY.length - 1 ? ", " : ""}
+                  </span>
+                ))}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section id="estimate" className="section estimate" aria-label="The estimate">
+          <div className="wrap">
+            {place ? (
+              <Calculator place={place} example={example} changed={changed} setChanged={setChanged} setLines={setLines} setSetLines={setSetLines} />
+            ) : (
+              <div className="loading" aria-live="polite">
+                Loading the example…
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section id="how" className="section">
+          <div className="wrap">
+            <h2>How it works</h2>
+            <ol className="steps">
+              <li>
+                <h3>We read the records for the address</h3>
+                <p>FEMA's flood zone, the county tax roll where it is published, RentCast's property record and the home's active listing.</p>
+              </li>
+              <li>
+                <h3>We estimate each cost</h3>
+                <p>Each line has its own method and source: the state's tax rules and rates, Treasury's insurance averages, FEMA's flood premiums and a formula fitted to EIA's energy survey.</p>
+              </li>
+              <li>
+                <h3>You make it yours</h3>
+                <p>Change any input, or type a real quote or bill over any line. The total follows at once. A changed figure shows the estimate beside it.</p>
+              </li>
+            </ol>
+            <div className="sources-grid">
+              {SOURCES.map(([line, from]) => (
+                <div key={line}>
+                  <h3>{line}</h3>
+                  <p>{from}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="coverage" className="section alt">
+          <div className="wrap">
+            <h2>How strong the estimate is in each state</h2>
+            <p className="section-lead">Every state gets a full estimate. The property tax decides how close it is, because states tax a new owner in different ways.</p>
+            <CoverageMap />
+          </div>
+        </section>
+
+        <section id="faq" className="section">
+          <div className="wrap narrow">
+            <h2>Questions</h2>
+            {FAQ.map(([q, a]) => (
+              <details key={q} className="faq">
+                <summary>{q}</summary>
+                <p>{a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+      </main>
+
+      <footer className="site-foot">
+        <div className="wrap foot-grid">
+          <div>
+            <p className="foot-brand">
+              Spatia <em>Cost to Own</em>
+            </p>
+            <p>Estimates, not quotes. A lender, an insurer and the county give the real figures.</p>
+            <p className="foot-links">
+              <a href="https://home.runspatia.com">Spatia Home: the full report on a home</a>
+              <a href="https://crime.runspatia.com">Spatia Crime</a>
+              <a href="https://runspatia.com">runspatia.com</a>
+            </p>
+          </div>
+          <div className="foot-data">
+            <p>
+              Data: U.S. Census Bureau (ACS, ZCTA files); U.S. Treasury Federal Insurance Office; FEMA NFIP; EIA (RECS 2020, Form 861, natural gas prices); NOAA climate normals; Florida
+              Department of Revenue; California BOE and county rate books; Texas Comptroller; RentCast; {NATIONAL.mortgage.source}.
+            </p>
+            <p>
+              Data built {NATIONAL.generated} from Spatia's data service (build {NATIONAL.catalog_build.slice(0, 15)}). Mortgage rate of the week of {NATIONAL.mortgage.week_of}.
+            </p>
+          </div>
+        </div>
+      </footer>
+    </>
   );
 }
 
-const TX_GROUPS: [TxUnit["cls"], string][] = [
-  ["county", "County"],
-  ["school_district", "School district"],
-  ["city", "City"],
-  ["special_district", "Special districts (MUD, ESD, water, hospital, college)"],
+const SOURCES: [string, string][] = [
+  ["Loan", "The asking price when the home is listed, Freddie Mac's weekly 30-year rate, 20 % down."],
+  ["Property tax", "Florida's rolls and district rates, California's 1 % levy, Texas's taxing units, or the area's rate."],
+  ["Insurance", "Treasury's ZIP Code premiums and FEMA's flood premiums for similar homes."],
+  ["Energy", "A formula fitted to EIA's 2020 survey, NOAA's climate normals and EIA's state prices."],
+  ["Fees", "The HOA fee from the property record or listing, and the county's flat charges in Florida."],
+  ["Upkeep", "1 % of the price a year for repairs, and a typical water and trash bill."],
 ];
 
-function TxUnits(p: { units: TxUnit[]; value: string[]; isChanged: boolean; source?: string; onChange: (v: string[]) => void; onReset: () => void }) {
-  const [filter, setFilter] = useState("");
-  const toggle = (id: string, on: boolean) => p.onChange(on ? [...p.value, id] : p.value.filter((x) => x !== id));
-  const rate = p.units.filter((u) => p.value.includes(u.id)).reduce((s, u) => s + u.rate, 0);
+const FAQ: [string, string][] = [
+  ["Is this a quote?", "No. These are estimates from public records and published rates. A lender quotes the loan, an insurer the premium, and the county sends the tax bill."],
+  ["Why is the property tax different from the listing?", "A listing shows the seller's bill. In many states a sale changes the taxed value, and the seller's exemptions do not pass to you. The estimate is for a new owner."],
+  ["Where does the price come from?", "When the home is listed for sale, the asking price. Otherwise the area's typical home value. Type the price you will pay for your own figure."],
+  ["What does the range on a line mean?", "Where a back-test measured it, 8 in 10 real figures fell inside the range. A line without a range has no tested spread."],
+  ["What is not included?", "Closing costs, the mortgage interest tax deduction, home price changes and the return you give up on the down payment."],
+  ["Is it free?", "Yes. No account and no sign-up. For the full report on a home, with its flood, hazard and neighborhood records, see Spatia Home."],
+];
+
+function CoverageMap() {
+  const [pick, setPick] = useState<string | null>(null);
+  const counts = TILES.reduce<Record<Grade, number>>((c, [st]) => ({ ...c, [gradeOf(st)]: c[gradeOf(st)] + 1 }), { A: 0, B: 0, C: 0, D: 0 });
+  const g = pick ? gradeOf(pick) : null;
   return (
-    <div className={`field${p.isChanged ? " changed" : ""}`}>
-      <span className="label">Taxing units on the bill</span>
-      <p className="hint">
-        {p.value.length} chosen: ${rate.toFixed(4)} per $100 of value. {p.isChanged ? "" : p.source}{" "}
-        {p.isChanged && (
-          <button type="button" className="link" onClick={p.onReset}>
-            Use the estimate
-          </button>
-        )}
-      </p>
-      {TX_GROUPS.map(([cls, title]) => {
-        const list = p.units.filter((u) => u.cls === cls).filter((u) => cls === "county" || p.value.includes(u.id) || !filter || u.name.toLowerCase().includes(filter.toLowerCase()));
-        if (!list.length) return null;
-        const body = (
-          <ul className="units">
-            {list.map((u) => (
-              <li key={u.id}>
-                <label>
-                  <input type="checkbox" checked={p.value.includes(u.id)} onChange={(e) => toggle(u.id, e.target.checked)} /> {u.name} <span className="affix">{u.rate.toFixed(4)}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        );
-        return cls === "county" ? (
-          <div key={cls}>{body}</div>
-        ) : (
-          <details key={cls} open={cls === "school_district"}>
-            <summary>
-              {title} ({p.units.filter((u) => u.cls === cls && p.value.includes(u.id)).length} of {p.units.filter((u) => u.cls === cls).length} chosen)
-            </summary>
-            {body}
-          </details>
-        );
-      })}
-      {p.units.length > 30 && <input className="unit-filter" placeholder="Find a unit by name" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Find a taxing unit" />}
-    </div>
-  );
-}
-
-function Group({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <fieldset className="group">
-      <legend>{title}</legend>
-      {children}
-    </fieldset>
-  );
-}
-
-interface FieldProps<T> {
-  label: string;
-  value: T;
-  isChanged: boolean;
-  source?: string;
-  onChange: (v: T) => void;
-  onReset: () => void;
-  defaultLabel: T;
-}
-
-function Shell({ label, id, isChanged, source, onReset, defaultText, children }: { label: string; id: string; isChanged: boolean; source?: string; onReset: () => void; defaultText: string; children: ReactNode }) {
-  return (
-    <div className={`field${isChanged ? " changed" : ""}`}>
-      <label htmlFor={id}>{label}</label>
-      <div className="control">{children}</div>
-      <p className="hint">
-        {isChanged ? (
-          <>
-            Your figure. Estimate: {defaultText}.{" "}
-            <button type="button" className="link" onClick={onReset}>
-              Use the estimate
-            </button>
-          </>
-        ) : (
-          source
-        )}
-      </p>
-    </div>
-  );
-}
-
-const idOf = (label: string) => `f-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-
-function Num(p: FieldProps<number> & { prefix?: string; suffix?: string; step: number }) {
-  const id = idOf(p.label);
-  return (
-    <Shell label={p.label} id={id} isChanged={p.isChanged} source={p.source} onReset={p.onReset} defaultText={`${p.prefix ?? ""}${p.defaultLabel.toLocaleString("en-US")}${p.suffix ? ` ${p.suffix}` : ""}`}>
-      {p.prefix && <span className="affix">{p.prefix}</span>}
-      <input id={id} type="number" inputMode="decimal" step={p.step} min={0} value={Number.isFinite(p.value) ? p.value : ""} onChange={(e) => e.target.value !== "" && p.onChange(Number(e.target.value))} />
-      {p.suffix && <span className="affix">{p.suffix}</span>}
-    </Shell>
-  );
-}
-
-function OptNum(p: FieldProps<number | null> & { prefix?: string; suffix?: string; step: number }) {
-  const id = idOf(p.label);
-  return (
-    <Shell label={p.label} id={id} isChanged={p.isChanged} source={p.source} onReset={p.onReset} defaultText={p.defaultLabel === null ? "not known" : `${p.prefix ?? ""}${p.defaultLabel.toLocaleString("en-US")}`}>
-      {p.prefix && <span className="affix">{p.prefix}</span>}
-      <input id={id} type="number" inputMode="decimal" step={p.step} min={0} placeholder="Not known" value={p.value ?? ""} onChange={(e) => p.onChange(e.target.value === "" ? null : Number(e.target.value))} />
-      {p.suffix && <span className="affix">{p.suffix}</span>}
-    </Shell>
-  );
-}
-
-type Opt<T> = [T, string];
-function Select<T extends string | number | boolean | null>(p: FieldProps<T> & { options: Opt<T>[] }) {
-  const id = idOf(p.label);
-  const key = (v: T) => JSON.stringify(v);
-  const text = p.options.find(([v]) => v === p.defaultLabel)?.[1] ?? String(p.defaultLabel);
-  return (
-    <Shell label={p.label} id={id} isChanged={p.isChanged} source={p.source} onReset={p.onReset} defaultText={text}>
-      <select id={id} value={key(p.value)} onChange={(e) => p.onChange(p.options.find(([v]) => key(v) === e.target.value)![0])}>
-        {p.options.map(([v, t]) => (
-          <option key={key(v)} value={key(v)}>
-            {t}
-          </option>
-        ))}
-      </select>
-    </Shell>
-  );
-}
-
-function LineRow({ line, onSet, onReset }: { line: Line; onSet: (v: number) => void; onReset: () => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const zero = line.yearly === 0 && !line.setByUser;
-  return (
-    <li className={`line${zero ? " zero" : ""}`}>
-      <div className="line-main">
-        <span className="line-label">{line.label}</span>
-        <span className="line-figure">{usd10(line.yearly / 12)}<small>/mo</small></span>
-      </div>
-      <div className="line-sub">
-        <span>
-          {usd10(line.yearly)} a year
-          {line.low !== null && line.high !== null && (
-            <>
-              {" "}
-              · most {usd10(line.low)} to {usd10(line.high)}
-            </>
-          )}
-        </span>
-        {editing ? (
-          <form
-            className="set"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const v = Number(draft.replace(/[$,\s]/g, ""));
-              if (Number.isFinite(v) && v >= 0) onSet(v * 12);
-              setEditing(false);
-            }}
-          >
-            <label>
-              $<input autoFocus inputMode="decimal" aria-label={`${line.label} a month`} value={draft} onChange={(e) => setDraft(e.target.value)} />
-              /mo
-            </label>
-            <button type="submit">Set</button>
-          </form>
-        ) : line.setByUser ? (
-          <button type="button" className="link" onClick={onReset}>
-            Use the estimate{line.estimate !== null ? ` (${usd10(line.estimate / 12)}/mo)` : ""}
-          </button>
-        ) : (
+    <div className="coverage">
+      <div className="tilemap" role="group" aria-label="Estimate grade by state">
+        {TILES.map(([st, x, y]) => (
           <button
+            key={st}
             type="button"
-            className="link"
-            onClick={() => {
-              setDraft(String(Math.round(line.yearly / 12)));
-              setEditing(true);
-            }}
+            className={`tile g${gradeOf(st)}${pick === st ? " picked" : ""}`}
+            style={{ gridColumn: x + 1, gridRow: y + 1 }}
+            aria-label={`${STATE_NAMES[st]}: ${GRADE_WORDS[gradeOf(st)].name}`}
+            aria-pressed={pick === st}
+            onClick={() => setPick(pick === st ? null : st)}
           >
-            Enter my figure
+            {st}
           </button>
-        )}
+        ))}
       </div>
-      <details>
-        <summary>{line.source || "How we got this"}</summary>
-        <ul>
-          {line.notes.map((n) => (
-            <li key={n}>{n}</li>
+      <div className="coverage-side">
+        {pick && g ? (
+          <div className="pick" aria-live="polite">
+            <p className="kicker">{STATE_NAMES[pick]}</p>
+            <p className="pick-grade">
+              <span className={`grade g${g}`}>{g}</span> {GRADE_WORDS[g].name}
+            </p>
+            <p>{GRADE_WORDS[g].text}</p>
+          </div>
+        ) : (
+          <p className="pick-hint">Select a state to see its grade.</p>
+        )}
+        <ul className="grades">
+          {(Object.keys(GRADE_WORDS) as Grade[]).map((k) => (
+            <li key={k}>
+              <span className={`grade g${k}`}>{k}</span>
+              <div>
+                <b>
+                  {GRADE_WORDS[k].name} · {counts[k]} {counts[k] === 1 ? "state" : "places"}
+                </b>
+                <p>{GRADE_WORDS[k].text}</p>
+              </div>
+            </li>
           ))}
         </ul>
-      </details>
-    </li>
+      </div>
+    </div>
   );
 }
