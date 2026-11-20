@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { calculate, LINE_KEYS, resolveAssumptions, type Assumptions, type Line, type LineKey, type Result } from "./lib/calc";
-import { trackChange, trackLine, trackReset } from "./lib/analytics";
+import { trackChange, trackClosing, trackLine, trackReset } from "./lib/analytics";
+import { closingCosts, type ClosingLine, type SetLines } from "./lib/closing";
 import { gradeOf, GRADE_WORDS, STATE_NAMES } from "./lib/coverage";
 import type { TxUnit } from "./lib/texas";
 import type { Place } from "./lib/types";
@@ -9,7 +10,6 @@ export const usd = (v: number) => `$${Math.round(v).toLocaleString("en-US")}`;
 const usd10 = (v: number) => usd(Math.round(v / 10) * 10);
 
 export type Changed = Partial<Assumptions>;
-type SetLines = Partial<Record<LineKey, number>>;
 
 /** The cost lines grouped for the breakdown bar. */
 const GROUPS: { id: string; name: string; keys: LineKey[] }[] = [
@@ -25,6 +25,7 @@ export function Calculator(props: { place: Place; example: boolean; changed: Cha
   const { place, changed, setChanged, setLines, setSetLines } = props;
   const { values, defaults, sources } = useMemo(() => resolveAssumptions(place, changed), [place, changed]);
   const result = useMemo(() => calculate(place, values, setLines), [place, values, setLines]);
+  const closing = useMemo(() => closingCosts(place, values, result, setLines), [place, values, result, setLines]);
   const st = place.zipData.st;
   const [tab, setTab] = useState<"costs" | "inputs">("costs");
   const totalRef = useRef<HTMLDivElement>(null);
@@ -66,6 +67,21 @@ export function Calculator(props: { place: Place; example: boolean; changed: Cha
     },
     onReset: () => {
       if (!props.example) trackLine(l.key, null, null);
+      setSetLines((s) => {
+        const n = { ...s };
+        delete n[l.key];
+        return n;
+      });
+    },
+  });
+  const closingProps = (l: ClosingLine) => ({
+    line: l,
+    onSet: (v: number) => {
+      if (!props.example) trackClosing(l.key, v, l.estimate);
+      setSetLines((s) => ({ ...s, [l.key]: v }));
+    },
+    onReset: () => {
+      if (!props.example) trackClosing(l.key, null, null);
       setSetLines((s) => {
         const n = { ...s };
         delete n[l.key];
@@ -179,7 +195,7 @@ export function Calculator(props: { place: Place; example: boolean; changed: Cha
               </div>
             </div>
             <Breakdown result={result} />
-            <p className="total-note">The likely range puts each tested line at the low or high end of its range. Closing costs are not included.</p>
+            <p className="total-note">The likely range puts each tested line at the low or high end of its range. The one-time costs at closing are below, not in this total.</p>
           </div>
           <ul className="tiles">
             {counted.map((l) => (
@@ -196,6 +212,29 @@ export function Calculator(props: { place: Place; example: boolean; changed: Cha
               </ul>
             </div>
           )}
+          <section className="closing" aria-labelledby="closing-h">
+            <div className="closing-head">
+              <h3 id="closing-h">One time, at closing</h3>
+              <p>
+                <b>{usd10(closing.cashToClose)}</b> cash to close
+              </p>
+            </div>
+            <ul>
+              <li>
+                <div className="closing-name">
+                  <b>Down payment</b>
+                  <span className="muted"> · {values.downPct} % of the price</span>
+                </div>
+                <span className="closing-fig">{usd(closing.downPayment)}</span>
+              </li>
+              {closing.lines.map((l) => (
+                <ClosingRow key={`${place.zip}-${l.key}`} {...closingProps(l)} />
+              ))}
+            </ul>
+            <p className="total-note">
+              Closing costs {usd10(closing.total)} on top of the down payment. Not in the monthly total. Your lender's Loan Estimate gives the real figures.
+            </p>
+          </section>
         </div>
       </div>
       <div className={`sticky-total${totalVisible && tab === "costs" ? "" : " show"}`} aria-hidden={totalVisible && tab === "costs"}>
@@ -453,10 +492,14 @@ function Select<T extends string | number | boolean | null>(p: FieldProps<T> & {
   );
 }
 
-/** The "Enter my figure" control: a link, then a small form for the monthly figure. */
-function SetFigure({ line, onSet, onReset }: { line: Line; onSet: (v: number) => void; onReset: () => void }) {
+/**
+ * The "Enter my figure" control: a link, then a small form. A monthly line is typed a month (`once` false); a closing line is typed
+ * as the one-time figure.
+ */
+function SetFigure({ line, once = false, onSet, onReset }: { line: { label: string; setByUser: boolean; estimate: number | null; current: number }; once?: boolean; onSet: (v: number) => void; onReset: () => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const shown = (v: number) => (once ? v : v / 12);
   if (editing)
     return (
       <form
@@ -464,13 +507,13 @@ function SetFigure({ line, onSet, onReset }: { line: Line; onSet: (v: number) =>
         onSubmit={(e) => {
           e.preventDefault();
           const v = Number(draft.replace(/[$,\s]/g, ""));
-          if (Number.isFinite(v) && v >= 0) onSet(v * 12);
+          if (Number.isFinite(v) && v >= 0) onSet(once ? v : v * 12);
           setEditing(false);
         }}
       >
         <label>
-          $<input autoFocus inputMode="decimal" aria-label={`${line.label} a month`} value={draft} onChange={(e) => setDraft(e.target.value)} />
-          /mo
+          $<input autoFocus inputMode="decimal" aria-label={once ? `${line.label}, one time` : `${line.label} a month`} value={draft} onChange={(e) => setDraft(e.target.value)} />
+          {once ? "" : "/mo"}
         </label>
         <button type="submit" className="btn-small">
           Set
@@ -483,7 +526,7 @@ function SetFigure({ line, onSet, onReset }: { line: Line; onSet: (v: number) =>
   if (line.setByUser)
     return (
       <button type="button" className="link" onClick={onReset}>
-        Use the estimate{line.estimate !== null ? ` (${usd10(line.estimate / 12)}/mo)` : ""}
+        Use the estimate{line.estimate !== null ? ` (${usd10(shown(line.estimate))}${once ? "" : "/mo"})` : ""}
       </button>
     );
   return (
@@ -491,7 +534,7 @@ function SetFigure({ line, onSet, onReset }: { line: Line; onSet: (v: number) =>
       type="button"
       className="link"
       onClick={() => {
-        setDraft(line.yearly > 0 ? String(Math.round(line.yearly / 12)) : "");
+        setDraft(line.current > 0 ? String(Math.round(shown(line.current))) : "");
         setEditing(true);
       }}
     >
@@ -500,7 +543,10 @@ function SetFigure({ line, onSet, onReset }: { line: Line; onSet: (v: number) =>
   );
 }
 
-function How({ line }: { line: Line }) {
+/** A monthly line as SetFigure reads it. */
+const monthlyOf = (l: Line) => ({ label: l.label, setByUser: l.setByUser, estimate: l.estimate, current: l.yearly });
+
+function How({ line }: { line: { source: string; notes: string[] } }) {
   return (
     <details className="how">
       <summary>How we got this</summary>
@@ -537,8 +583,29 @@ function LineTile({ line, onSet, onReset }: { line: Line; onSet: (v: number) => 
       <p className="tile-sub">
         {hasRange ? `Most ${usd10(line.low! / 12)} to ${usd10(line.high! / 12)}` : `${usd10(line.yearly)} a year`}
       </p>
-      <SetFigure line={line} onSet={onSet} onReset={onReset} />
+      <SetFigure line={monthlyOf(line)} onSet={onSet} onReset={onReset} />
       <How line={line} />
+    </li>
+  );
+}
+
+/** A one-time line at closing: the figure, its tested range when one exists, the set control and how we got it. */
+function ClosingRow({ line, onSet, onReset }: { line: ClosingLine; onSet: (v: number) => void; onReset: () => void }) {
+  const hasRange = line.low !== null && line.high !== null && line.high > line.low;
+  const known = line.estimate !== null || line.setByUser;
+  return (
+    <li className={line.setByUser ? "user" : undefined}>
+      <div className="closing-name">
+        <b>{line.label}</b>
+        {line.setByUser && <span className="tag">Your figure</span>}
+        {hasRange && <span className="muted"> · 8 in 10 pay {usd10(line.low!)} to {usd10(line.high!)}</span>}
+        {!known && <span className="muted"> · {line.notes[0]}</span>}
+      </div>
+      <span className="closing-fig">{known ? usd10(line.amount) : "Not known"}</span>
+      <div className="closing-actions">
+        <SetFigure line={{ label: line.label, setByUser: line.setByUser, estimate: line.estimate, current: line.amount }} once onSet={onSet} onReset={onReset} />
+        <How line={line} />
+      </div>
     </li>
   );
 }
@@ -550,7 +617,7 @@ function NotCountedRow({ line, onSet, onReset }: { line: Line; onSet: (v: number
         <b>{line.label}</b>
         <span className="muted"> · {line.notes[0] ?? line.source}</span>
       </div>
-      <SetFigure line={line} onSet={onSet} onReset={onReset} />
+      <SetFigure line={monthlyOf(line)} onSet={onSet} onReset={onReset} />
     </li>
   );
 }

@@ -1,7 +1,8 @@
 /**
- * Insurance: homeowners (Treasury FIO's ZIP average, as published) and flood (NFIP's premiums of similar homes, with the state's
- * back-test range). Neither is a quote.
+ * Insurance: homeowners (Treasury FIO's ZIP average, brought to date with BLS's national price index of homeowners premiums) and
+ * flood (NFIP's premiums of similar homes, with the state's back-test range). Neither is a quote.
  */
+import hoiIndex from "../data/hoi-index.generated.json";
 import national from "../data/national.generated.json";
 import type { CountyData, ZipData } from "./types";
 
@@ -13,31 +14,56 @@ export interface InsuranceFigure {
   notes: string[];
 }
 
-/** Treasury FIO's average premium per policy in the ZIP, its latest year, as published (never scaled to today). */
+const HOI_INDEX = hoiIndex as { series: string; latest: { year: number; month: number; value: number }; annual_average: Record<string, number> };
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/**
+ * The change in BLS's producer price index of homeowners insurance premiums from Treasury's year (its average) to the latest final
+ * month (owner 2026-11-20: Treasury's premium brought to date with a published index; the study's next step 4). Null when the
+ * index has no full year for Treasury's year.
+ */
+export function hoiFactor(year: number): { factor: number; to: string } | null {
+  const base = HOI_INDEX.annual_average[String(year)];
+  if (!base) return null;
+  return { factor: HOI_INDEX.latest.value / base, to: `${MONTHS[HOI_INDEX.latest.month - 1]} ${HOI_INDEX.latest.year}` };
+}
+
+/** Treasury's published figure, then the index step, both stated. */
+function dated(usd: number, year: number, what: string): { yearly: number; notes: string[] } {
+  const published = `${what}: $${Math.round(usd).toLocaleString("en-US")} in ${year}, as Treasury published it.`;
+  const f = hoiFactor(year);
+  if (!f) return { yearly: usd, notes: [`${published} Premiums have risen since then in many states.`] };
+  const change = Math.round((f.factor - 1) * 100);
+  return {
+    yearly: usd * f.factor,
+    notes: [
+      published,
+      `Brought to ${f.to} with the Bureau of Labor Statistics' price index of homeowners insurance premiums (PPI ${HOI_INDEX.series}): ${change >= 0 ? "+" : ""}${change} % since the ${year} average. The index is national: premiums in this state can have risen more or less.`,
+    ],
+  };
+}
+
+/** Treasury FIO's average premium per policy in the ZIP (else the county's middle ZIP), brought to date with BLS's national index. */
 export function homeownersInsurance(z: ZipData, c: CountyData | null = null): InsuranceFigure | null {
   if (!z.hoi) {
     const h = c?.hoi_county;
     if (!h) return null;
+    const d = dated(h.usd, h.year, `The middle of ${h.zips} ZIP averages in the county`);
     return {
-      yearly: h.usd,
+      yearly: d.yearly,
       low: null,
       high: null,
-      source: `U.S. Treasury Federal Insurance Office: the middle of ${h.zips} ZIP averages in the county, up to ${h.year}`,
-      notes: [
-        "Treasury does not publish this ZIP. The figure is the middle of the county's published ZIP averages, as published.",
-        "Premiums have risen since then in many states. It is not a quote for this home: ask an agent for one.",
-      ],
+      source: `U.S. Treasury Federal Insurance Office: the middle of the county's ZIP averages (${h.year}), brought to date with BLS's premium index`,
+      notes: ["Treasury does not publish this ZIP. The figure starts from the middle of the county's published ZIP averages.", ...d.notes, "It is not a quote for this home: ask an agent for one."],
     };
   }
+  const d = dated(z.hoi.usd, z.hoi.year, "The average homeowners premium per policy in this ZIP");
   return {
-    yearly: z.hoi.usd,
+    yearly: d.yearly,
     low: null,
     high: null,
-    source: `U.S. Treasury Federal Insurance Office, ZIP ${z.hoi.year} average premium per policy`,
-    notes: [
-      `The average homeowners premium in this ZIP in ${z.hoi.year}, as Treasury published it. Premiums have risen since then in many states.`,
-      "It is the average over every home in the ZIP, not a quote for this home's size or roof. Ask an agent for a quote.",
-    ],
+    source: `U.S. Treasury Federal Insurance Office, ZIP ${z.hoi.year} average premium per policy, brought to date with BLS's premium index`,
+    notes: [...d.notes, "It is the average over every home in the ZIP, not a quote for this home's size or roof. Ask an agent for a quote."],
   };
 }
 

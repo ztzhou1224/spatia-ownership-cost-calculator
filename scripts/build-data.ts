@@ -11,8 +11,14 @@
  *   src/data/states.generated.json     per state: EIA's electricity and gas prices, the default heating fuel, California's voter rate
  *   src/data/national.generated.json   Freddie Mac's mortgage rates, NFIP's back-test ratios, the build and source notes
  *   src/data/fl-tax.generated.json     Florida's k × price back-test groups (trimmed from spatia-report's tax-backtest-fl.generated.json)
+ *   src/data/hoi-index.generated.json  BLS's producer price index of homeowners insurance premiums (stage `hoi-index`)
+ *   src/data/closing.generated.json    HMDA's total loan costs of home purchase loans by state × loan size, with the year-on-year test
+ *                                      (stage `closing`)
  *
- * Sources: Spatia's data service (`/query`, the spatia-data catalog), the U.S. Census Bureau's ZCTA files, and Freddie Mac's PMMS.
+ * `--only <stage>[,<stage>]` runs only those stages (`hoi-index`, `closing`); they need no token.
+ *
+ * Sources: Spatia's data service (`/query`, the spatia-data catalog), the U.S. Census Bureau's ZCTA files, Freddie Mac's PMMS, the
+ * Bureau of Labor Statistics' PPI and the FFIEC's HMDA data browser (CFPB).
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -186,9 +192,191 @@ function writeJson(path: string, v: unknown) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
+// BLS: the producer price index of homeowners insurance premiums, to date Treasury's premiums (study, next step 4; owner 2026-11-20).
+
+/** BLS PPI "Premiums for property and casualty insurance: homeowner's insurance", monthly, not seasonally adjusted. */
+const HOI_PPI_SERIES = "PCU9241269241262";
+
+async function stageHoiIndex() {
+  const f = join(CACHE, "bls-hoi-ppi.json");
+  if (!existsSync(f)) {
+    const thisYear = new Date().getUTCFullYear();
+    const r = await fetch("https://api.bls.gov/publicAPI/v2/timeseries/data/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seriesid: [HOI_PPI_SERIES], startyear: String(thisYear - 9), endyear: String(thisYear) }),
+    });
+    const j = (await r.json()) as { status: string; message?: string[] };
+    if (j.status !== "REQUEST_SUCCEEDED") throw new Error(`BLS: ${j.status} ${JSON.stringify(j.message)}`);
+    writeFileSync(f, JSON.stringify(j));
+  }
+  type Obs = { year: string; period: string; value: string; footnotes: { code?: string }[] };
+  const data = (JSON.parse(readFileSync(f, "utf8")) as { Results: { series: { data: Obs[] }[] } }).Results.series[0].data;
+  const monthly = data
+    .filter((d) => /^M(0[1-9]|1[0-2])$/.test(d.period))
+    .map((d) => ({ year: Number(d.year), month: Number(d.period.slice(1)), value: Number(d.value), preliminary: d.footnotes.some((x) => x.code === "P") }))
+    .sort((a, b) => a.year - b.year || a.month - b.month);
+  // the latest final month: BLS revises a preliminary month for four months
+  const latest = [...monthly].reverse().find((m) => !m.preliminary)!;
+  const annual: Record<string, number> = {};
+  for (const y of new Set(monthly.map((m) => m.year))) {
+    const ms = monthly.filter((m) => m.year === y);
+    if (ms.length === 12) annual[y] = round(ms.reduce((t, m) => t + m.value, 0) / 12, 3);
+  }
+  writeJson(join(ROOT, "src/data/hoi-index.generated.json"), {
+    generated: new Date().toISOString().slice(0, 10),
+    series: HOI_PPI_SERIES,
+    source: "U.S. Bureau of Labor Statistics, Producer Price Index: premiums for homeowner's insurance (national, not seasonally adjusted)",
+    latest: { year: latest.year, month: latest.month, value: latest.value },
+    annual_average: annual,
+  });
+  console.log(`hoi-index: ${latest.year}-${String(latest.month).padStart(2, "0")} ${latest.value}; ${Object.keys(annual).length} full years`);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// HMDA: what buyers paid the lender and for the title and other services (the Closing Disclosure's "total loan costs").
+
+/** Loan-size bands: HMDA rounds the amount to the middle of a $10,000 bin. */
+const CLOSING_BANDS = [
+  { name: "lt150k", low: 0, high: 150_000 },
+  { name: "150k_250k", low: 150_000, high: 250_000 },
+  { name: "250k_400k", low: 250_000, high: 400_000 },
+  { name: "400k_600k", low: 400_000, high: 600_000 },
+  { name: "600k_1m", low: 600_000, high: 1_000_000 },
+  { name: "gt1m", low: 1_000_000, high: Infinity },
+];
+/** The test: the earlier year's 10th–90th percentile range must hold at least this share of the later year's loans, on enough loans. */
+const CLOSING_BARS = { coverage_min: 0.75, min_tested: 100, min_fit: 100 };
+
+function csvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "", q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') q = false;
+      else cur += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === ",") { out.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+/**
+ * One state's year: [loan amount, total loan costs] of each originated conventional first-lien purchase loan on a one-unit site-built
+ * home the borrower lives in (not reverse, not open-end, not business). Only these two numbers are kept; the CSV is deleted.
+ */
+async function hmdaPairs(st: string, year: number): Promise<[number, number][]> {
+  const f = join(CACHE, `hmda-${year}-${st}.json`);
+  if (existsSync(f)) return JSON.parse(readFileSync(f, "utf8"));
+  const url = `https://ffiec.cfpb.gov/v2/data-browser-api/view/csv?states=${st}&years=${year}&actions_taken=1&loan_purposes=1`;
+  const csv = join(CACHE, `hmda-${year}-${st}.csv`);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      execFileSync("curl", ["-sSfL", "--compressed", "-m", "900", "-o", csv, url]);
+      break;
+    } catch (e) {
+      if (attempt >= 3) throw e;
+      await new Promise((ok) => setTimeout(ok, 5000 * (attempt + 1)));
+    }
+  }
+  const lines = readFileSync(csv, "utf8").split(/\r?\n/);
+  const head = csvLine(lines[0]);
+  const col = (n: string) => {
+    const i = head.indexOf(n);
+    if (i < 0) throw new Error(`HMDA ${st} ${year}: no column ${n}`);
+    return i;
+  };
+  const c = {
+    type: col("loan_type"), lien: col("lien_status"), rev: col("reverse_mortgage"), open: col("open-end_line_of_credit"), biz: col("business_or_commercial_purpose"),
+    amt: col("loan_amount"), cost: col("total_loan_costs"), build: col("construction_method"), occ: col("occupancy_type"), units: col("total_units"),
+  };
+  const pairs: [number, number][] = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i]) continue;
+    const r = csvLine(lines[i]);
+    if (r[c.type] !== "1" || r[c.lien] !== "1" || r[c.rev] !== "2" || r[c.open] !== "2" || r[c.biz] !== "2" || r[c.build] !== "1" || r[c.occ] !== "1" || r[c.units] !== "1") continue;
+    const amt = Number(r[c.amt]);
+    const cost = Number(r[c.cost]);
+    if (!(amt > 0) || r[c.cost] === "" || r[c.cost] === "NA" || r[c.cost] === "Exempt" || !Number.isFinite(cost) || cost < 0) continue;
+    pairs.push([amt, Math.round(cost)]);
+  }
+  rmSync(csv);
+  writeFileSync(f, JSON.stringify(pairs));
+  return pairs;
+}
+
+const quantile = (sorted: number[], p: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(p * (sorted.length - 1))))];
+
+async function stageClosing() {
+  // the latest HMDA year the data browser serves, and the year before it for the test
+  const thisYear = new Date().getUTCFullYear();
+  let year = thisYear - 1;
+  for (;; year--) {
+    const r = await fetch(`https://ffiec.cfpb.gov/v2/data-browser-api/view/aggregations?states=DE&years=${year}&actions_taken=1`);
+    if (r.ok) break;
+    if (year < thisYear - 4) throw new Error("HMDA: no recent year served");
+  }
+  const states: Record<string, { band: string; n: number; p10: number; p50: number; p90: number; tested: { n: number; coverage: number } | null; passed: boolean }[]> = {};
+  for (const st of STATES) {
+    const fit = await hmdaPairs(st, year - 1);
+    const now = await hmdaPairs(st, year);
+    const rows = [];
+    for (const b of CLOSING_BANDS) {
+      const inBand = (p: [number, number]) => p[0] >= b.low && p[0] < b.high;
+      const cur = now.filter(inBand).map((p) => p[1]).sort((x, y) => x - y);
+      const old = fit.filter(inBand).map((p) => p[1]).sort((x, y) => x - y);
+      if (cur.length < CLOSING_BARS.min_fit) continue;
+      let tested: { n: number; coverage: number } | null = null;
+      if (old.length >= CLOSING_BARS.min_fit) {
+        const lo = quantile(old, 0.1), hi = quantile(old, 0.9);
+        tested = { n: cur.length, coverage: round(cur.filter((v) => v >= lo && v <= hi).length / cur.length, 3) };
+      }
+      rows.push({
+        band: b.name,
+        n: cur.length,
+        p10: quantile(cur, 0.1),
+        p50: quantile(cur, 0.5),
+        p90: quantile(cur, 0.9),
+        tested,
+        passed: !!tested && tested.n >= CLOSING_BARS.min_tested && tested.coverage >= CLOSING_BARS.coverage_min,
+      });
+    }
+    states[st] = rows;
+    process.stdout.write(`\rclosing: ${st} ${now.length} loans`);
+  }
+  process.stdout.write("\n");
+  writeJson(join(ROOT, "src/data/closing.generated.json"), {
+    generated: new Date().toISOString().slice(0, 10),
+    year,
+    tested_on: `${year - 1} ranges against ${year} loans`,
+    source: "FFIEC HMDA data browser (CFPB): total loan costs (Closing Disclosure section D) of originated conventional first-lien home purchase loans, one-unit site-built homes the borrower lives in",
+    bands: CLOSING_BANDS.map((b) => ({ name: b.name, low: b.low, high: Number.isFinite(b.high) ? b.high : null })),
+    bars: CLOSING_BARS,
+    states,
+  });
+}
+
+const ONLY = (() => {
+  const i = process.argv.indexOf("--only");
+  return i > 0 ? (process.argv[i + 1] ?? "").split(",").filter(Boolean) : null;
+})();
+const STAGES: Record<string, () => Promise<void>> = { "hoi-index": stageHoiIndex, closing: stageClosing };
+
+// ---------------------------------------------------------------------------------------------------------------------------
 // Stages.
 
 async function main() {
+  if (ONLY) {
+    for (const name of ONLY) {
+      if (!STAGES[name]) throw new Error(`no stage ${name} (${Object.keys(STAGES).join(", ")})`);
+      await STAGES[name]();
+    }
+    return;
+  }
   const cat = await catalog();
   const ver = (id: string) => cat.layers.find((l) => l.id === id)?.version ?? null;
   console.log(`catalog build ${catalogBuild}`);
@@ -439,6 +627,8 @@ async function main() {
         })),
     })),
   });
+  await stageHoiIndex();
+  await stageClosing();
   console.log("done");
 }
 

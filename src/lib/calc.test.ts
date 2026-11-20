@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculate, defaultsFor, LINE_KEYS, resolveAssumptions } from "./calc";
 import { energyCost } from "./energy-cost";
-import { floodInsurance } from "./insurance";
+import { floodInsurance, hoiFactor, homeownersInsurance } from "./insurance";
 import { defaultPmiPct, monthlyPayment, pmiEndMonth } from "./mortgage";
 import { californiaTax, floridaTax, propertyTax } from "./tax";
 import type { CountyData, Place } from "./types";
@@ -87,6 +87,18 @@ describe("insurance and energy", () => {
     expect(floodInsurance(hillsborough, "FL", "outside", true)!.yearly).toBe(610);
     expect(floodInsurance(null, "FL", "outside", true)).toBeNull();
   });
+  it("homeowners: Treasury's figure as published, brought to date with BLS's index, both stated", () => {
+    const f = hoiFactor(2022)!;
+    expect(f.factor).toBeGreaterThan(1);
+    expect(f.factor).toBeLessThan(2);
+    const h = homeownersInsurance(tampa.zipData)!;
+    expect(h.yearly).toBeCloseTo(9481 * f.factor, 6);
+    expect(h.notes[0]).toContain("$9,481 in 2022, as Treasury published it");
+    expect(h.notes[1]).toContain(f.to);
+    // a year the index has no full year for stays as published
+    expect(hoiFactor(1990)).toBeNull();
+    expect(homeownersInsurance({ ...tampa.zipData, hoi: { usd: 2000, year: 1990 } })!.yearly).toBe(2000);
+  });
   it("energy: a bigger home uses more; the range holds the figure", () => {
     const base = { homeType: "house" as const, bedrooms: null, yearBuilt: null, cooling: null, pool: null, heating: "electric_heat" as const, hdd: 500, cdd: 3800, st: "FL", electricityUsdPerKwh: 0.15, gasUsdPerMcf: null };
     const small = energyCost({ ...base, sqft: 1200 })!;
@@ -131,7 +143,7 @@ describe("the calculator", () => {
     const hoi = set.lines.find((l) => l.key === "home_insurance")!;
     expect(hoi.yearly).toBe(3600);
     expect(hoi.setByUser).toBe(true);
-    expect(hoi.estimate).toBe(9481);
-    expect(set.yearly - r.yearly).toBeCloseTo(3600 - 9481, 6);
+    expect(hoi.estimate).toBeCloseTo(9481 * hoiFactor(2022)!.factor, 6);
+    expect(set.yearly - r.yearly).toBeCloseTo(3600 - hoi.estimate!, 6);
   });
 });

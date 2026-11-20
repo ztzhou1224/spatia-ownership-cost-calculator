@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Calculator, type Changed } from "./Calculator";
 import example from "./data/example-address.json";
 import { track } from "./lib/analytics";
-import { NATIONAL, type LineKey } from "./lib/calc";
+import { NATIONAL } from "./lib/calc";
+import type { SetLines } from "./lib/closing";
 import { gradeOf, GRADE_WORDS, STATE_NAMES, TILES, type Grade } from "./lib/coverage";
 import { loadAddress, loadPlace } from "./lib/data";
 import type { AddressFacts } from "./lib/lookup";
@@ -30,7 +31,7 @@ export function App() {
   const [isExample, setIsExample] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [changed, setChanged] = useState<Changed>({});
-  const [setLines, setSetLines] = useState<Partial<Record<LineKey, number>>>({});
+  const [setLines, setSetLines] = useState<SetLines>({});
   const [busy, setBusy] = useState(false);
 
   async function search(raw: string) {
@@ -203,7 +204,7 @@ export function App() {
           </div>
           <div className="foot-data">
             <p>
-              Data: U.S. Census Bureau (ACS, ZCTA files); U.S. Treasury Federal Insurance Office; FEMA NFIP; EIA (RECS 2020, Form 861, natural gas prices); NOAA climate normals; Florida
+              Data: U.S. Census Bureau (ACS, ZCTA files); U.S. Treasury Federal Insurance Office; Bureau of Labor Statistics (PPI); FEMA NFIP; FFIEC HMDA (CFPB); EIA (RECS 2020, Form 861, natural gas prices); NOAA climate normals; Florida
               Department of Revenue; California BOE and county rate books; Texas Comptroller; RentCast; {NATIONAL.mortgage.source}.
             </p>
             <p>
@@ -219,10 +220,11 @@ export function App() {
 const SOURCES: [string, string][] = [
   ["Loan", "The asking price when the home is listed, Freddie Mac's weekly 30-year rate, 20 % down."],
   ["Property tax", "Florida's rolls and district rates, California's 1 % levy, Texas's taxing units, or the area's rate."],
-  ["Insurance", "Treasury's ZIP Code premiums and FEMA's flood premiums for similar homes."],
+  ["Insurance", "Treasury's ZIP Code premiums, brought to date with BLS's premium index, and FEMA's flood premiums for similar homes."],
   ["Energy", "A formula fitted to EIA's 2020 survey, NOAA's climate normals and EIA's state prices."],
   ["Fees", "The HOA fee from the property record or listing, and the county's flat charges in Florida."],
   ["Upkeep", "1 % of the price a year for repairs, and a typical water and trash bill."],
+  ["At closing", "What buyers in the state paid the lender and for the title on a loan of this size (HMDA), Florida's taxes on the mortgage, and the first bills paid ahead."],
 ];
 
 const FAQ: [string, string][] = [
@@ -231,7 +233,7 @@ const FAQ: [string, string][] = [
   ["Where does the price come from?", "When the home is listed for sale, the asking price. Otherwise the area's typical home value. Type the price you will pay for your own figure."],
   ["Why do I need a full address?", "The costs depend on the home: its size, its flood zone, its tax district and its asking price. A ZIP code holds many different homes."],
   ["What does the range on a line mean?", "Where a back-test measured it, 8 in 10 real figures fell inside the range. A line without a range has no tested spread."],
-  ["What is not included?", "Closing costs, the mortgage interest tax deduction, home price changes and the return you give up on the down payment."],
+  ["What is not included?", "The mortgage interest tax deduction, home price changes and the return you give up on the down payment. The one-time costs at closing are shown apart from the monthly total."],
   ["Is it free?", "Yes. No account and no sign-up. For the full report on a home, with its flood, hazard and neighborhood records, see Spatia Home."],
 ];
 

@@ -97,6 +97,12 @@ export function trackReset(field: string, estimate: unknown): void {
   track(`reset_${snake(field)}`, { field: snake(field), new_value: valueText(estimate) });
 }
 
+/** A one-time line at closing the visitor typed (the figure, as they typed it), or cleared. */
+export function trackClosing(line: string, amount: number | null, estimate: number | null): void {
+  if (amount === null) track(`reset_close_${line}`, { line });
+  else track(`set_close_${line}`, { line, new_value: valueText(Math.round(amount)), new_value_num: Math.round(amount), default_value: valueText(estimate === null ? null : Math.round(estimate)) });
+}
+
 /** A cost line the visitor typed (a month, as they typed it), or cleared. */
 export function trackLine(line: string, monthly: number | null, estimateMonthly: number | null): void {
   if (monthly === null) track(`reset_line_${line}`, { line });

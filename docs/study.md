@@ -15,12 +15,34 @@ own figure for any cost line.
 | Principal and interest | Standard amortised payment | The asking price on RentCast's active listing (else the county's typical value); Freddie Mac PMMS 30-year rate, latest week; 20 % down; 30 years | None (exact for the inputs) |
 | Mortgage insurance | Loan × a yearly rate, until the loan is 78 % of the price | An assumed rate by down payment (`mortgage.ts` `PMI_BY_DOWN`); a lender quotes the real one | None |
 | Property tax | See "Property tax" below | Florida DOR rolls and district rates; California's 1 % levy and rate books; Census ACS | Florida only, where the back-test passed |
-| Homeowners insurance | The ZIP's average premium per policy, as published | U.S. Treasury FIO, ZIP, latest year (2022) | None |
+| Homeowners insurance | The ZIP's average premium per policy, brought to date with a national premium index | U.S. Treasury FIO, ZIP, latest year (2022); BLS PPI of homeowners insurance premiums (`PCU9241269241262`), the year's average to the latest final month | None |
 | Flood insurance | The county's median new NFIP premium of similar homes (zone × main home) | FEMA NFIP policies (spatia-data `nfip_premiums_similar_homes`) | The state's back-test, 10th–90th percentile |
 | HOA fee | The user's figure | None: no public source | None |
 | Electricity and gas | Spatia Home's RECS 2020 formula (`energy.ts`, copied unchanged) | NOAA 1991–2020 normals at the nearest station; EIA-861 state price; EIA state gas price | The formula's 10th–90th percentile |
 | Water, sewer, trash | A fixed monthly assumption | None: no national source of rates | None |
 | Maintenance | 1 % of the price a year | The common rule | None |
+
+## Homeowners insurance
+
+Treasury's ZIP average is from 2022. Since 2026-11-20 (owner: "6. yes", the study's next step 4) the default is that figure × the
+change in the Bureau of Labor Statistics' producer price index of homeowners insurance premiums, from the 2022 average to the
+latest final month (`src/data/hoi-index.generated.json`, `scripts/build-data.ts` stage `hoi-index`). In June 2026 the step is
++28 %. The line states both: Treasury's figure as published, then the index step. The index is national: it does not show that
+premiums rose more in some states than in others.
+
+## One-time costs at closing
+
+Since 2026-11-20 (owner: "start with 1 and 2"), a block apart from the monthly total: the down payment and three lines, each one
+the user can set. Cash to close = the down payment + the lines.
+
+| Line | Method | Source | Range |
+|---|---|---|---|
+| Lender, title and other services | The median "total loan costs" (the Closing Disclosure's section D: origination charges, points, appraisal, lender's title insurance, settlement) of loans in the state and the loan's size band | FFIEC HMDA data browser (CFPB): originated conventional first-lien purchase loans, one-unit site-built homes the borrower lives in, latest year (`src/data/closing.generated.json`, stage `closing`) | The 10th–90th percentile, only where the year before's range held ≥ 75 % of the latest year's loans (≥ 100 loans) |
+| Taxes on the mortgage | Florida: $0.35 per $100 of the note (Fla. Stat. § 201.08) + 0.2 % of the loan (§ 199.133). Texas: none. Elsewhere: not modelled ("not known") | State law | None |
+| Prepaid bills and escrow deposit | The first year of insurance + 3 months of tax and 2 months of insurance into escrow + 15 days of interest | An assumption made from the monthly lines | None |
+
+Not in the block: the deed's transfer tax (usually the seller's in Florida and California), the owner's title policy, recording
+fees, lender and seller credits.
 
 ## Property tax
 
@@ -56,13 +78,14 @@ the default district, the error can be larger.
 
 ## Known limits of the pilot
 
-- Treasury's homeowners figure is from 2022. Premiums have risen since in many states. It is the ZIP's average, not this home's.
+- Treasury's homeowners figure is from 2022, brought to date with a NATIONAL index. It is the ZIP's average, not this home's.
 - The location is a ZIP code. A ZIP can cross county and district lines; the calculator takes the county with most of the ZIP's
   land.
 - Texas: the Comptroller's rates per taxing unit (`src/lib/texas.ts`; spatia-data `tx_property_tax_rates`, promoted to stable
   2026-11-18, `docs/texas-promotion.md`). The default units are the county, the school district at the address and the postal
   city; special districts are the user's to tick. Texas does not publish sale prices, so the figure has no tested range.
-- No closing costs, no tax deduction, no appreciation, no opportunity cost of the down payment.
+- No tax deduction, no appreciation, no opportunity cost of the down payment (owner 2026-11-20: not wanted), no rent comparison
+  (owner 2026-11-20: not wanted). Closing costs outside Florida and Texas have no tax line.
 - The address lookup (`/api/lookup`, the Worker) answers only a rooftop-grade point from Spatia's geocoder. It reads FEMA's flood
   zone everywhere; in Florida the county roll's use, living area, year built and the parcel's tax district; in Texas the school
   district at the point; and, in every state, RentCast's property record (owner direction 2026-11-18: "Use rentcast property
@@ -79,13 +102,18 @@ the default district, the error can be larger.
 1. Done 2026-11-18: the address lookup (the Worker at cost.runspatia.com).
 2. Done 2026-11-18: Texas's rates per taxing unit. Later: the Comptroller's property value study as the value ratio.
 3. More states with a roll back-test, or the state's sales-ratio study as the value ratio.
-4. A dated index for Treasury's 2022 premiums, only if a published index supports it.
+4. Done 2026-11-20: Treasury's 2022 premiums brought to date with BLS's national premium index. Later: a state index, if one is
+   published.
+5. Done 2026-11-20: the one-time costs at closing (HMDA and Florida's statutes). Later: transfer and recording taxes of more states.
+
+The side-by-side test of the property tax against the methods of other calculators: `docs/side-by-side-test.md` (2026-11-20).
 
 ## Rebuilding the data
 
 ```bash
 eval "$(../spatia-report/.claude/skills/query-token/query-token.sh env "cost calculator data")"
 pnpm data
+pnpm data --only hoi-index,closing   # only the BLS index and HMDA's closing costs: no token needed
 ```
 
 The build caches each read under `.cache/`. If the token expires (15 minutes), mint a new one and run again.
